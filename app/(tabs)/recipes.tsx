@@ -140,6 +140,8 @@ export default function RecipesScreen() {
       setUsingFallback(false);
       return;
     }
+    setRecipeTitles([]);
+    setExpandedRecipeId(null);
 
     let cancelled = false;
     const pantryNames = items.map((item) => item.name).filter(Boolean);
@@ -181,6 +183,40 @@ export default function RecipesScreen() {
       cancelled = true;
     };
   }, [items, selectedCategory, titlesCache, cacheKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const pantryNames = items.map((item) => item.name);
+    if (recipeTitles.length === 0 || pantryNames.length === 0) return;
+
+    async function preload() {
+      for (const recipe of recipeTitles) {
+        if (cancelled) return;
+        if (recipeDetailsById[recipe.id]) continue;
+        const cacheDetailKey = `${selectedCategory}::${recipe.title.toLowerCase()}`;
+        const cached = detailsCache[cacheDetailKey];
+        if (cached) {
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          setRecipeDetailsById((prev) => ({ ...prev, [recipe.id]: cached }));
+          continue;
+        }
+        try {
+          const detail = await generateRecipeDetails(pantryNames, selectedCategory, recipe.title);
+          if (!detail || cancelled) continue;
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          setRecipeDetailsById((prev) => ({ ...prev, [recipe.id]: detail }));
+          setDetailsCache((prev) => ({ ...prev, [cacheDetailKey]: detail }));
+        } catch {
+          // keep moving so one failed detail does not block others
+        }
+      }
+    }
+
+    preload();
+    return () => {
+      cancelled = true;
+    };
+  }, [recipeTitles, items, selectedCategory, detailsCache, recipeDetailsById]);
 
   async function onLoadRecipe(recipe: Recipe) {
     const cacheDetailKey = `${selectedCategory}::${recipe.title.toLowerCase()}`;
@@ -259,6 +295,7 @@ export default function RecipesScreen() {
               <Text style={styles.cardTitle}>{recipe.title}</Text>
               {!detail ? (
                 <View style={styles.missingWrap} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.matchText}>Have --/-- ingredients</Text>
                   <Pressable
                     onPress={() => onLoadRecipe(recipe)}
                     style={({ pressed }) => [

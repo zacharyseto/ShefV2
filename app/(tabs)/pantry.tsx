@@ -1,7 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Stack } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Animated, Modal, Pressable, SectionList, StyleSheet, TextInput } from 'react-native';
+import { Modal, Pressable, SectionList, StyleSheet, TextInput, View as RNView } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 
 import { Text, View } from '@/components/Themed';
@@ -20,13 +20,10 @@ type PantrySection = {
 };
 
 const GROUPS = [
-  { title: 'Fruits', color: '#f97316', icon: 'apple' },
-  { title: 'Vegetables', color: '#22c55e', icon: 'leaf' },
   { title: 'Protein', color: '#ef4444', icon: 'cutlery' },
+  { title: 'Veggies', color: '#22c55e', icon: 'leaf' },
   { title: 'Dairy', color: '#3b82f6', icon: 'tint' },
-  { title: 'Grains', color: '#f59e0b', icon: 'pagelines' },
-  { title: 'Pantry', color: '#8b5cf6', icon: 'archive' },
-  { title: 'Other', color: '#64748b', icon: 'circle' },
+  { title: 'Fruits', color: '#f97316', icon: 'apple' },
 ] as const;
 
 function toDisplayName(name: string): string {
@@ -36,25 +33,19 @@ function toDisplayName(name: string): string {
 
 function groupForIngredient(name: string): (typeof GROUPS)[number]['title'] {
   const n = name.toLowerCase();
-  if (/(apple|banana|orange|berry|berries|grape|melon|mango|pear|peach|fruit)/.test(n)) {
-    return 'Fruits';
-  }
-  if (/(spinach|lettuce|tomato|tomatoes|onion|garlic|pepper|carrot|broccoli|cucumber|zucchini|vegetable)/.test(n)) {
-    return 'Vegetables';
-  }
   if (/(chicken|beef|pork|fish|salmon|egg|eggs|tofu|beans|lentil|turkey)/.test(n)) {
     return 'Protein';
   }
   if (/(milk|yogurt|cheese|butter|cream)/.test(n)) {
     return 'Dairy';
   }
-  if (/(rice|pasta|bread|oat|quinoa|flour|cereal|noodle)/.test(n)) {
-    return 'Grains';
+  if (/(apple|banana|orange|berry|berries|grape|melon|mango|pear|peach|fruit)/.test(n)) {
+    return 'Fruits';
   }
-  if (/(salt|sugar|oil|sauce|spice|vinegar|stock|broth|can|canned)/.test(n)) {
-    return 'Pantry';
+  if (/(spinach|lettuce|tomato|tomatoes|onion|garlic|pepper|carrot|broccoli|cucumber|zucchini|vegetable)/.test(n)) {
+    return 'Veggies';
   }
-  return 'Other';
+  return 'Veggies';
 }
 
 export default function PantryScreen() {
@@ -128,14 +119,9 @@ export default function PantryScreen() {
           renderItem={({ item, section }) => (
             <Swipeable
               overshootRight={false}
-              renderRightActions={(_, dragX) => {
-                const translateX = dragX.interpolate({
-                  inputRange: [-120, 0],
-                  outputRange: [0, 72],
-                  extrapolate: 'clamp',
-                });
+              renderRightActions={() => {
                 return (
-                  <Animated.View style={{ transform: [{ translateX }] }}>
+                  <RNView style={styles.swipeDeleteRow}>
                     <Pressable
                       onPress={() => removeItem(item.id)}
                       style={styles.swipeDelete}
@@ -143,12 +129,11 @@ export default function PantryScreen() {
                       accessibilityLabel={`Delete ${item.name}`}>
                       <FontAwesome name="trash-o" size={20} color="#fff" />
                     </Pressable>
-                  </Animated.View>
+                  </RNView>
                 );
               }}>
               <View style={styles.row} lightColor="transparent" darkColor="transparent">
                 <View style={styles.rowMain}>
-                  <FontAwesome name={section.icon} size={16} color={section.color} style={styles.leafIcon} />
                   <Text style={styles.itemName}>{toDisplayName(item.name)}</Text>
                 </View>
               </View>
@@ -245,27 +230,25 @@ const styles = StyleSheet.create({
   sep: {
     height: StyleSheet.hairlineWidth,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
+  swipeDeleteRow: {
+    flex: 1,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   swipeDelete: {
     backgroundColor: '#ef4444',
-    width: 72,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
+    minWidth: 140,
+    height: '100%',
   },
   rowMain: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
     marginRight: 12,
-  },
-  leafIcon: {
-    marginRight: 10,
   },
   itemName: {
     fontSize: 17,
