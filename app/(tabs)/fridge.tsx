@@ -2,7 +2,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Image, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Alert, Animated, Image, Pressable, StyleSheet } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
 import Colors from '@/constants/Colors';
@@ -144,77 +144,37 @@ export default function FridgeScreen() {
 
   return (
     <View style={styles.flex}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.lead}>
-          Snap or upload a fridge photo and AI will automatically detect ingredients and add them to your
-          pantry.
-        </Text>
-
+      <Pressable
+        onPress={pickFromCamera}
+        disabled={isAnalyzing}
+        style={({ pressed }) => [
+          styles.photoFrameLarge,
+          { opacity: isAnalyzing ? 0.4 : pressed ? 0.9 : 1 },
+        ]}>
         <View style={styles.photoFrame} lightColor="#f4f4f5" darkColor="#27272a">
           {fridgeImageUri ? (
-            <View style={styles.photoWrap} lightColor="transparent" darkColor="transparent">
-              <Image source={{ uri: fridgeImageUri }} style={styles.photo} resizeMode="cover" />
-              {isAnalyzing ? (
-                <View style={styles.overlay} lightColor="transparent" darkColor="transparent">
-                  {targets.slice(0, visibleTargetCount).map((target) => (
-                    <Animated.View
-                      key={`${target.name}-${target.x}-${target.y}`}
-                      style={[
-                        styles.targetWrap,
-                        {
-                          top: `${Math.round(target.y * 100)}%`,
-                          left: `${Math.round(target.x * 100)}%`,
-                          transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.2] }) }],
-                        },
-                      ]}>
-                      <View style={styles.targetDot} />
-                      <Text style={styles.targetLabel}>{target.name}</Text>
-                    </Animated.View>
-                  ))}
-                  <Text style={styles.overlayTitle}>Analyzing ingredients...</Text>
-                </View>
-              ) : null}
-            </View>
+            <Image source={{ uri: fridgeImageUri }} style={styles.photo} resizeMode="cover" />
           ) : (
-            <Text style={styles.placeholder} lightColor="#71717a" darkColor="#a1a1aa">
-              No photo yet
-            </Text>
+            <View style={styles.capturePrompt} lightColor="transparent" darkColor="transparent">
+              <FontAwesome name="camera" size={42} color={palette.tint} />
+              <Text style={styles.capturePromptText}>Tap to take fridge photo</Text>
+            </View>
           )}
         </View>
-
-        <View style={styles.row}>
-          <Pressable
-            disabled={isAnalyzing}
-            onPress={pickFromCamera}
-            style={({ pressed }) => [
-              styles.button,
-              { backgroundColor: palette.tint, opacity: isAnalyzing ? 0.5 : pressed ? 0.85 : 1 },
-            ]}>
-            <FontAwesome name="camera" size={18} color="#fff" style={styles.buttonIcon} />
-            <Text style={styles.buttonLabel}>Take photo</Text>
-          </Pressable>
-          <Pressable
-            disabled={isAnalyzing}
-            onPress={pickFromLibrary}
-            style={({ pressed }) => [
-              styles.button,
-              styles.buttonSecondary,
-              {
-                borderColor: palette.tint,
-                opacity: isAnalyzing ? 0.45 : pressed ? 0.85 : 1,
-              },
-            ]}>
-            <FontAwesome name="photo" size={18} color={palette.tint} style={styles.buttonIcon} />
-            <Text style={[styles.buttonLabelSecondary, { color: palette.tint }]}>Upload</Text>
-          </Pressable>
-        </View>
-
-        {fridgeImageUri ? (
-          <Pressable onPress={() => setFridgeImageUri(null)} style={styles.clearPhoto}>
-            <Text style={{ color: palette.tint, fontSize: 15 }}>Remove photo</Text>
-          </Pressable>
-        ) : null}
-      </ScrollView>
+      </Pressable>
+      <Pressable
+        disabled={isAnalyzing}
+        onPress={pickFromLibrary}
+        style={({ pressed }) => [
+          styles.uploadButton,
+          {
+            backgroundColor: palette.tint,
+            opacity: isAnalyzing ? 0.45 : pressed ? 0.85 : 1,
+          },
+        ]}>
+        <FontAwesome name="photo" size={18} color="#fff" style={styles.buttonIcon} />
+        <Text style={styles.buttonLabel}>Upload</Text>
+      </Pressable>
     </View>
   );
 }
@@ -235,34 +195,22 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(9, 9, 11, 0.28)',
   },
-  scroll: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  lead: {
-    fontSize: 16,
-    lineHeight: 22,
-    marginBottom: 16,
+  photoFrameLarge: {
+    flex: 1,
+    margin: 20,
+    marginBottom: 12,
   },
   photoFrame: {
     borderRadius: 12,
     overflow: 'hidden',
-    aspectRatio: 4 / 3,
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
   },
   photo: {
     width: '100%',
     height: '100%',
-  },
-  photoWrap: {
-    width: '100%',
-    height: '100%',
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(9, 9, 11, 0.32)',
   },
   overlayTitle: {
     position: 'absolute',
@@ -296,25 +244,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     overflow: 'hidden',
   },
-  placeholder: {
-    fontSize: 16,
+  capturePrompt: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 8,
+  capturePromptText: {
+    marginTop: 12,
+    fontSize: 17,
+    fontWeight: '600',
   },
-  button: {
-    flex: 1,
+  uploadButton: {
+    marginHorizontal: 20,
+    marginBottom: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
     borderRadius: 10,
-  },
-  buttonSecondary: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
   },
   buttonIcon: {
     marginRight: 8,
@@ -323,13 +269,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-  },
-  buttonLabelSecondary: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  clearPhoto: {
-    alignSelf: 'flex-start',
-    marginTop: 14,
   },
 });

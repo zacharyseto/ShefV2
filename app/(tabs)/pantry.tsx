@@ -1,7 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Stack } from 'expo-router';
-import React, { useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, TextInput } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Modal, Pressable, SectionList, StyleSheet, TextInput } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 
 import { Text, View } from '@/components/Themed';
@@ -9,12 +9,69 @@ import Colors from '@/constants/Colors';
 import { usePantry } from '@/context/PantryContext';
 import { useColorScheme } from '@/components/useColorScheme';
 
+type PantrySection = {
+  title: string;
+  color: string;
+  data: {
+    id: string;
+    name: string;
+  }[];
+};
+
+const GROUPS = [
+  { title: 'Produce', color: '#22c55e' },
+  { title: 'Protein', color: '#ef4444' },
+  { title: 'Dairy', color: '#3b82f6' },
+  { title: 'Grains', color: '#f59e0b' },
+  { title: 'Pantry', color: '#8b5cf6' },
+  { title: 'Other', color: '#64748b' },
+] as const;
+
+function toDisplayName(name: string): string {
+  if (!name) return name;
+  return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+}
+
+function groupForIngredient(name: string): (typeof GROUPS)[number]['title'] {
+  const n = name.toLowerCase();
+  if (/(spinach|lettuce|tomato|tomatoes|onion|garlic|pepper|carrot|broccoli|apple|banana|fruit|vegetable)/.test(n)) {
+    return 'Produce';
+  }
+  if (/(chicken|beef|pork|fish|salmon|egg|eggs|tofu|beans|lentil|turkey)/.test(n)) {
+    return 'Protein';
+  }
+  if (/(milk|yogurt|cheese|butter|cream)/.test(n)) {
+    return 'Dairy';
+  }
+  if (/(rice|pasta|bread|oat|quinoa|flour|cereal|noodle)/.test(n)) {
+    return 'Grains';
+  }
+  if (/(salt|sugar|oil|sauce|spice|vinegar|stock|broth|can|canned)/.test(n)) {
+    return 'Pantry';
+  }
+  return 'Other';
+}
+
 export default function PantryScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
   const { items, removeItem, addIngredient } = usePantry();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
+
+  const sections = useMemo<PantrySection[]>(() => {
+    const grouped = new Map<string, typeof items>();
+    for (const group of GROUPS) grouped.set(group.title, []);
+    for (const item of items) {
+      const bucket = groupForIngredient(item.name);
+      grouped.get(bucket)?.push(item);
+    }
+    return GROUPS.map((group) => ({
+      title: group.title,
+      color: group.color,
+      data: grouped.get(group.title) ?? [],
+    })).filter((section) => section.data.length > 0);
+  }, [items]);
 
   function onSubmitAdd() {
     const trimmed = draftName.trim();
@@ -41,11 +98,6 @@ export default function PantryScreen() {
         }}
       />
 
-      <Text style={styles.lead}>
-        AI-detected ingredients appear here from the Fridge tab. You can also add ingredients manually
-        with the plus button.
-      </Text>
-
       {items.length === 0 ? (
         <View style={styles.empty} lightColor="#f4f4f5" darkColor="#27272a">
           <FontAwesome name="shopping-basket" size={40} color={palette.tabIconDefault} />
@@ -55,11 +107,18 @@ export default function PantryScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={items}
+        <SectionList<{ id: string; name: string }, PantrySection>
+          sections={sections}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          SectionSeparatorComponent={() => <View style={styles.sectionGap} lightColor="transparent" darkColor="transparent" />}
           ItemSeparatorComponent={() => <View style={styles.sep} lightColor="#e4e4e7" darkColor="#3f3f46" />}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.sectionHeader} lightColor="transparent" darkColor="transparent">
+              <View style={[styles.sectionDot, { backgroundColor: section.color }]} />
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+            </View>
+          )}
           renderItem={({ item }) => (
             <Swipeable
               overshootRight={false}
@@ -75,9 +134,8 @@ export default function PantryScreen() {
               <View style={styles.row} lightColor="transparent" darkColor="transparent">
                 <View style={styles.rowMain}>
                   <FontAwesome name="leaf" size={17} color={palette.tint} style={styles.leafIcon} />
-                  <Text style={styles.itemName}>{item.name.toUpperCase()}</Text>
+                  <Text style={styles.itemName}>{toDisplayName(item.name)}</Text>
                 </View>
-                <FontAwesome name="angle-left" size={18} color={palette.tabIconDefault} />
               </View>
             </Swipeable>
           )}
@@ -135,13 +193,26 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
-  lead: {
-    fontSize: 16,
-    lineHeight: 22,
-    marginBottom: 16,
-  },
   list: {
     paddingBottom: 24,
+  },
+  sectionGap: {
+    height: 14,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  sectionDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   empty: {
     borderRadius: 12,
@@ -166,7 +237,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   swipeDelete: {
     backgroundColor: '#ef4444',
