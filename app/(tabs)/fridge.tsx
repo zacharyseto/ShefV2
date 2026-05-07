@@ -10,19 +10,6 @@ import { usePantry } from '@/context/PantryContext';
 import { useColorScheme } from '@/components/useColorScheme';
 import { detectIngredientsFromBase64Image } from '@/lib/ingredientVision';
 
-const MOCK_INGREDIENTS = [
-  'milk',
-  'eggs',
-  'spinach',
-  'tomatoes',
-  'onion',
-  'garlic',
-  'chicken breast',
-  'yogurt',
-  'cheddar cheese',
-  'bell pepper',
-];
-
 export default function FridgeScreen() {
   const palette = Colors[useColorScheme() ?? 'light'];
   const router = useRouter();
@@ -93,7 +80,12 @@ export default function FridgeScreen() {
       }
       await finishDetection(ingredients);
     } catch (error) {
-      await finishDetection(MOCK_INGREDIENTS);
+      setIsAnalyzing(false);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      Alert.alert(
+        'AI analyze failed',
+        `Could not analyze this photo with OpenAI. ${message}\n\nSet EXPO_PUBLIC_OPENAI_API_KEY and restart Expo to use live AI.`
+      );
     }
   }
 

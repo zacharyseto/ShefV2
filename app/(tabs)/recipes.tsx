@@ -16,6 +16,7 @@ type Recipe = {
 };
 
 const CATEGORIES: RecipeCategory[] = ['parties', 'balanced meals', 'appetizers'];
+const ENABLE_RECIPE_FALLBACK = false;
 
 const HARD_CODED_RECIPES: Recipe[] = [
   {
@@ -77,7 +78,7 @@ export default function RecipesScreen() {
   }, [items]);
 
   const suggestions = useMemo(() => {
-    const source = aiRecipes.length > 0 ? aiRecipes : HARD_CODED_RECIPES;
+    const source = aiRecipes.length > 0 || !ENABLE_RECIPE_FALLBACK ? aiRecipes : HARD_CODED_RECIPES;
     const inCategory = source.filter((recipe) => recipe.category === selectedCategory);
     return inCategory
       .map((recipe) => {
@@ -96,7 +97,7 @@ export default function RecipesScreen() {
     const pantryNames = items.map((item) => item.name).filter(Boolean);
     if (pantryNames.length === 0) {
       setAiRecipes([]);
-      setUsingFallback(true);
+      setUsingFallback(ENABLE_RECIPE_FALLBACK);
       return;
     }
 
@@ -113,11 +114,11 @@ export default function RecipesScreen() {
           steps: recipe.steps,
         }));
         setAiRecipes(normalized);
-        setUsingFallback(normalized.length === 0);
+        setUsingFallback(ENABLE_RECIPE_FALLBACK && normalized.length === 0);
       } catch {
         if (!cancelled) {
           setAiRecipes([]);
-          setUsingFallback(true);
+          setUsingFallback(ENABLE_RECIPE_FALLBACK);
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -138,6 +139,9 @@ export default function RecipesScreen() {
       </Text>
       {isLoading ? <Text style={styles.badge}>Generating AI recipes...</Text> : null}
       {usingFallback ? <Text style={styles.badge}>Using fallback recipes.</Text> : null}
+      {!usingFallback && !isLoading && aiRecipes.length === 0 ? (
+        <Text style={styles.badge}>No AI recipes yet. Add pantry items and ensure API key is configured.</Text>
+      ) : null}
 
       <View style={styles.chipsRow} lightColor="transparent" darkColor="transparent">
         {CATEGORIES.map((category) => {
