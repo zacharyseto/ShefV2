@@ -1,4 +1,5 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, SectionList, StyleSheet, TextInput, View as RNView } from 'react-native';
@@ -12,7 +13,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 type PantrySection = {
   title: string;
   color: string;
-  icon: React.ComponentProps<typeof FontAwesome>['name'];
+  icon: string;
   data: {
     id: string;
     name: string;
@@ -20,10 +21,10 @@ type PantrySection = {
 };
 
 const GROUPS = [
-  { title: 'Protein', color: '#ef4444', icon: 'cutlery' },
-  { title: 'Veggies', color: '#22c55e', icon: 'leaf' },
-  { title: 'Dairy', color: '#3b82f6', icon: 'tint' },
-  { title: 'Fruits', color: '#f97316', icon: 'apple' },
+  { title: 'Protein', color: '#ef4444', icon: 'food-steak' },
+  { title: 'Veggies', color: '#22c55e', icon: 'carrot' },
+  { title: 'Dairy', color: '#3b82f6', icon: 'milk' },
+  { title: 'Fruits', color: '#f97316', icon: 'fruit-pear' },
 ] as const;
 
 function toDisplayName(name: string): string {
@@ -112,16 +113,26 @@ export default function PantryScreen() {
           ItemSeparatorComponent={() => <View style={styles.sep} lightColor="#e4e4e7" darkColor="#3f3f46" />}
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader} lightColor="transparent" darkColor="transparent">
-              <FontAwesome name={section.icon} size={16} color={section.color} style={styles.sectionIcon} />
+              <MaterialCommunityIcons
+                name={section.icon as never}
+                size={18}
+                color={section.color}
+                style={styles.sectionIcon}
+              />
               <Text style={styles.sectionTitle}>{section.title}</Text>
             </View>
           )}
-          renderItem={({ item, section }) => (
+          renderItem={({ item }) => (
             <Swipeable
               overshootRight={false}
-              renderRightActions={() => {
+              renderRightActions={(_, dragX) => {
+                const translateX = dragX.interpolate({
+                  inputRange: [-120, 0],
+                  outputRange: [0, 72],
+                  extrapolate: 'clamp',
+                });
                 return (
-                  <RNView style={styles.swipeDeleteRow}>
+                  <RNView style={[styles.swipeDeleteRow, { transform: [{ translateX }] }]}>
                     <Pressable
                       onPress={() => removeItem(item.id)}
                       style={styles.swipeDelete}
@@ -232,17 +243,17 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
   swipeDeleteRow: {
-    flex: 1,
-    alignItems: 'flex-end',
+    width: 72,
+    alignItems: 'center',
     justifyContent: 'center',
   },
   swipeDelete: {
     backgroundColor: '#ef4444',
-    width: '100%',
+    width: 72,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 140,
-    height: '100%',
+    borderRadius: 8,
+    height: 44,
   },
   rowMain: {
     flexDirection: 'row',

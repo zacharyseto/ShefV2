@@ -136,6 +136,7 @@ export default function FridgeScreen() {
 
   async function pickFromLibraryInCamera() {
     setCameraOpen(false);
+    await new Promise((resolve) => setTimeout(resolve, 250));
     await pickFromLibrary();
   }
 
@@ -335,6 +336,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 26,
+    zIndex: 10,
   },
   cameraControlLeft: {
     width: 44,

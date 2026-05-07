@@ -140,13 +140,14 @@ export async function generateRecipeTitles(
     messages: [
       {
         role: 'system',
-        content: 'You are a cooking assistant. Return strict JSON only.',
+        content:
+          'You are a cooking assistant. Prioritize recipes that heavily use provided pantry ingredients. Return strict JSON only.',
       },
       {
         role: 'user',
         content: `Using pantry ingredients: ${pantryIngredients.join(
           ', '
-        )}\nGenerate 8 ${category} recipe titles only. Return JSON exactly as {"recipes":[{"title":"...","category":"${category}"}]}.`,
+        )}\nGenerate 8 ${category} recipe titles only. Each title must be strongly based on these pantry ingredients and category. Return JSON exactly as {"recipes":[{"title":"...","category":"${category}"}]}.`,
       },
     ],
   };
@@ -204,13 +205,14 @@ export async function generateRecipeDetails(
     messages: [
       {
         role: 'system',
-        content: 'You are a practical cooking assistant. Return strict JSON only.',
+        content:
+          'You are a practical cooking assistant. Build recipes that maximize the provided pantry ingredients and minimize missing ingredients. Return strict JSON only.',
       },
       {
         role: 'user',
         content: `Using pantry ingredients: ${pantryIngredients.join(
           ', '
-        )}\nFor category "${category}", generate recipe details for title "${title}". Return JSON exactly as {"recipe":{"title":"${title}","category":"${category}","ingredients":["..."],"steps":["..."]}}.`,
+        )}\nFor category "${category}", generate recipe details for title "${title}". Use at least 70% pantry ingredients in the ingredient list whenever possible and keep missing extras minimal. Return JSON exactly as {"recipe":{"title":"${title}","category":"${category}","ingredients":["..."],"steps":["..."]}}.`,
       },
     ],
   };
