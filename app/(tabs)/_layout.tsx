@@ -44,6 +44,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabBarIcon name="cutlery" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="groceries"
+        options={{
+          title: 'Groceries',
+          tabBarIcon: ({ color }) => <TabBarIcon name="shopping-cart" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

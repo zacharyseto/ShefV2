@@ -4,7 +4,20 @@ function stripCodeFences(raw: string): string {
   return raw.replace(/```json|```/gi, '').trim();
 }
 
-export async function detectIngredientsFromBase64Image(base64: string): Promise<string[]> {
+export type DetectedIngredient = {
+  name: string;
+  x: number; // 0..1
+  y: number; // 0..1
+};
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0.5;
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+}
+
+export async function detectIngredientsFromBase64Image(base64: string): Promise<DetectedIngredient[]> {
   const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('Missing EXPO_PUBLIC_OPENAI_API_KEY');
@@ -25,7 +38,7 @@ export async function detectIngredientsFromBase64Image(base64: string): Promise<
         content: [
           {
             type: 'text',
-            text: 'Extract visible ingredients. Return strict JSON: {"ingredients":["ingredient one","ingredient two"]}.',
+            text: 'Extract visible ingredients. Return strict JSON: {"ingredients":[{"name":"ingredient one","x":0.35,"y":0.48}]}. Use normalized x/y values from 0 to 1 approximating where each ingredient is in the image center.',
           },
           {
             type: 'image_url',
@@ -62,9 +75,18 @@ export async function detectIngredientsFromBase64Image(base64: string): Promise<
     const parsed = JSON.parse(stripCodeFences(content));
     const ingredients = Array.isArray(parsed?.ingredients) ? parsed.ingredients : [];
     return ingredients
-      .filter((item: unknown) => typeof item === 'string')
-      .map((item: string) => item.trim())
-      .filter(Boolean);
+      .filter(
+        (item: unknown) =>
+          typeof item === 'object' &&
+          item !== null &&
+          typeof (item as { name?: unknown }).name === 'string'
+      )
+      .map((item: { name: string; x?: number; y?: number }) => ({
+        name: item.name.trim(),
+        x: clamp01(typeof item.x === 'number' ? item.x : 0.5),
+        y: clamp01(typeof item.y === 'number' ? item.y : 0.5),
+      }))
+      .filter((item: DetectedIngredient) => item.name.length > 0);
   } catch {
     return [];
   }

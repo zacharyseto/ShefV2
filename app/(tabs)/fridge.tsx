@@ -8,14 +8,14 @@ import { Text, View } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { usePantry } from '@/context/PantryContext';
 import { useColorScheme } from '@/components/useColorScheme';
-import { detectIngredientsFromBase64Image } from '@/lib/ingredientVision';
+import { detectIngredientsFromBase64Image, DetectedIngredient } from '@/lib/ingredientVision';
 
 export default function FridgeScreen() {
   const palette = Colors[useColorScheme() ?? 'light'];
   const router = useRouter();
   const { fridgeImageUri, setFridgeImageUri, addIngredientsFromText } = usePantry();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [lastDetected, setLastDetected] = useState<string[]>([]);
+  const [detectedTargets, setDetectedTargets] = useState<DetectedIngredient[]>([]);
   const [visibleTargetCount, setVisibleTargetCount] = useState(0);
   const pulse = useRef(new Animated.Value(0)).current;
 
@@ -32,32 +32,25 @@ export default function FridgeScreen() {
   }, [isAnalyzing, pulse]);
 
   useEffect(() => {
-    if (!isAnalyzing || lastDetected.length === 0) return;
+    if (!isAnalyzing || detectedTargets.length === 0) return;
     setVisibleTargetCount(0);
     let count = 0;
     const timer = setInterval(() => {
       count += 1;
       setVisibleTargetCount(count);
-      if (count >= lastDetected.length) {
+      if (count >= detectedTargets.length) {
         clearInterval(timer);
       }
     }, 280);
     return () => clearInterval(timer);
-  }, [isAnalyzing, lastDetected]);
+  }, [isAnalyzing, detectedTargets]);
 
-  const targets = useMemo(
-    () =>
-      lastDetected.slice(0, 6).map((name, idx) => ({
-        name,
-        top: 18 + ((idx * 23) % 62),
-        left: 8 + ((idx * 17) % 68),
-      })),
-    [lastDetected]
-  );
+  const targets = useMemo(() => detectedTargets.slice(0, 8), [detectedTargets]);
 
-  async function finishDetection(ingredients: string[]) {
-    addIngredientsFromText(ingredients.join(', '));
-    setLastDetected(ingredients);
+  async function finishDetection(detections: DetectedIngredient[]) {
+    const ingredientNames = detections.map((item) => item.name).join(', ');
+    addIngredientsFromText(ingredientNames);
+    setDetectedTargets(detections);
     await new Promise((resolve) => setTimeout(resolve, 1300));
     setIsAnalyzing(false);
     router.push('/pantry');
@@ -66,19 +59,19 @@ export default function FridgeScreen() {
   async function processPickedAsset(asset: ImagePicker.ImagePickerAsset) {
     setFridgeImageUri(asset.uri);
     setIsAnalyzing(true);
-    setLastDetected([]);
+    setDetectedTargets([]);
     setVisibleTargetCount(0);
     try {
       if (!asset.base64) {
         throw new Error('No image data');
       }
-      const ingredients = await detectIngredientsFromBase64Image(asset.base64);
-      if (ingredients.length === 0) {
+      const detections = await detectIngredientsFromBase64Image(asset.base64);
+      if (detections.length === 0) {
         Alert.alert('No ingredients found', 'Try a clearer photo that shows food items directly.');
         setIsAnalyzing(false);
         return;
       }
-      await finishDetection(ingredients);
+      await finishDetection(detections);
     } catch (error) {
       setIsAnalyzing(false);
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -138,12 +131,12 @@ export default function FridgeScreen() {
                 <View style={styles.overlay} lightColor="transparent" darkColor="transparent">
                   {targets.slice(0, visibleTargetCount).map((target) => (
                     <Animated.View
-                      key={target.name}
+                      key={`${target.name}-${target.x}-${target.y}`}
                       style={[
                         styles.targetWrap,
                         {
-                          top: `${target.top}%`,
-                          left: `${target.left}%`,
+                          top: `${Math.round(target.y * 100)}%`,
+                          left: `${Math.round(target.x * 100)}%`,
                           transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.2] }) }],
                         },
                       ]}>
@@ -243,6 +236,8 @@ const styles = StyleSheet.create({
   targetWrap: {
     position: 'absolute',
     alignItems: 'center',
+    marginLeft: -7,
+    marginTop: -7,
   },
   targetDot: {
     width: 14,

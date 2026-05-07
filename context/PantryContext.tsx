@@ -3,12 +3,19 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 
 const STORAGE_PANTRY = '@shefv2/pantry';
 const STORAGE_FRIDGE_IMAGE = '@shefv2/fridge-image';
+const STORAGE_GROCERIES = '@shefv2/groceries';
 
 export type PantryItem = {
   id: string;
   name: string;
   addedAt: number;
   sourceImageUri: string | null;
+};
+
+export type GroceryItem = {
+  id: string;
+  name: string;
+  addedAt: number;
 };
 
 type PantryContextValue = {
@@ -18,6 +25,10 @@ type PantryContextValue = {
   addIngredientsFromText: (text: string) => void;
   addIngredient: (name: string) => void;
   removeItem: (id: string) => void;
+  groceryItems: GroceryItem[];
+  addGroceryFromText: (text: string) => void;
+  addGroceryItem: (name: string) => void;
+  removeGroceryItem: (id: string) => void;
 };
 
 const PantryContext = createContext<PantryContextValue | null>(null);
@@ -36,15 +47,17 @@ function normalizeName(name: string): string {
 export function PantryProvider({ children }: { children: React.ReactNode }) {
   const [fridgeImageUri, setFridgeImageUriState] = useState<string | null>(null);
   const [items, setItems] = useState<PantryItem[]>([]);
+  const [groceryItems, setGroceryItems] = useState<GroceryItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [rawItems, rawImage] = await Promise.all([
+        const [rawItems, rawImage, rawGroceries] = await Promise.all([
           AsyncStorage.getItem(STORAGE_PANTRY),
           AsyncStorage.getItem(STORAGE_FRIDGE_IMAGE),
+          AsyncStorage.getItem(STORAGE_GROCERIES),
         ]);
         if (cancelled) return;
         if (rawItems) {
@@ -52,6 +65,10 @@ export function PantryProvider({ children }: { children: React.ReactNode }) {
           if (Array.isArray(parsed)) setItems(parsed);
         }
         if (rawImage) setFridgeImageUriState(rawImage);
+        if (rawGroceries) {
+          const parsedGroceries = JSON.parse(rawGroceries) as GroceryItem[];
+          if (Array.isArray(parsedGroceries)) setGroceryItems(parsedGroceries);
+        }
       } catch {
         /* ignore corrupt storage */
       } finally {
@@ -67,6 +84,11 @@ export function PantryProvider({ children }: { children: React.ReactNode }) {
     if (!hydrated) return;
     AsyncStorage.setItem(STORAGE_PANTRY, JSON.stringify(items)).catch(() => {});
   }, [items, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    AsyncStorage.setItem(STORAGE_GROCERIES, JSON.stringify(groceryItems)).catch(() => {});
+  }, [groceryItems, hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -110,6 +132,33 @@ export function PantryProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) => prev.filter((i) => i.id !== id));
   }, []);
 
+  const addGroceryFromText = useCallback((text: string) => {
+    const parts = splitIngredientLines(text);
+    if (parts.length === 0) return;
+    setGroceryItems((prev) => {
+      const existing = new Set(prev.map((item) => item.name.toLowerCase()));
+      const now = Date.now();
+      const additions: GroceryItem[] = [];
+      for (const part of parts) {
+        const name = normalizeName(part);
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (existing.has(key)) continue;
+        existing.add(key);
+        additions.push({
+          id: `${now}-${Math.random().toString(36).slice(2, 9)}`,
+          name,
+          addedAt: now,
+        });
+      }
+      return [...additions, ...prev];
+    });
+  }, []);
+
+  const removeGroceryItem = useCallback((id: string) => {
+    setGroceryItems((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
   const value = useMemo(
     () => ({
       fridgeImageUri,
@@ -119,8 +168,21 @@ export function PantryProvider({ children }: { children: React.ReactNode }) {
         addIngredientsWithSource(text, fridgeImageUri),
       addIngredient: (name: string) => addIngredientsWithSource(name, null),
       removeItem,
+      groceryItems,
+      addGroceryFromText,
+      addGroceryItem: (name: string) => addGroceryFromText(name),
+      removeGroceryItem,
     }),
-    [fridgeImageUri, setFridgeImageUri, items, addIngredientsWithSource, removeItem]
+    [
+      fridgeImageUri,
+      setFridgeImageUri,
+      items,
+      addIngredientsWithSource,
+      removeItem,
+      groceryItems,
+      addGroceryFromText,
+      removeGroceryItem,
+    ]
   );
 
   return <PantryContext.Provider value={value}>{children}</PantryContext.Provider>;

@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet } from 'react-native';
 
@@ -17,6 +18,7 @@ type Recipe = {
 
 const CATEGORIES: RecipeCategory[] = ['parties', 'balanced meals', 'appetizers'];
 const ENABLE_RECIPE_FALLBACK = false;
+const RECIPE_CACHE_KEY = '@shefv2/recipes-cache-v1';
 
 const HARD_CODED_RECIPES: Recipe[] = [
   {
@@ -66,16 +68,27 @@ const HARD_CODED_RECIPES: Recipe[] = [
 export default function RecipesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
-  const { items } = usePantry();
+  const { items, addGroceryFromText } = usePantry();
   const [selectedCategory, setSelectedCategory] = useState<RecipeCategory>('balanced meals');
   const [expandedRecipeId, setExpandedRecipeId] = useState<string | null>(null);
   const [aiRecipes, setAiRecipes] = useState<Recipe[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
+  const [recipeCache, setRecipeCache] = useState<Record<string, Recipe[]>>({});
 
   const pantrySet = useMemo(() => {
     return new Set(items.map((item) => item.name.toLowerCase()));
   }, [items]);
+
+  const pantrySignature = useMemo(
+    () =>
+      [...items.map((item) => item.name.toLowerCase().trim())]
+        .sort((a, b) => a.localeCompare(b))
+        .join('|'),
+    [items]
+  );
+
+  const cacheKey = `${selectedCategory}::${pantrySignature}`;
 
   const suggestions = useMemo(() => {
     const source = aiRecipes.length > 0 || !ENABLE_RECIPE_FALLBACK ? aiRecipes : HARD_CODED_RECIPES;
@@ -93,6 +106,29 @@ export default function RecipesScreen() {
   }, [aiRecipes, pantrySet, selectedCategory]);
 
   useEffect(() => {
+    AsyncStorage.getItem(RECIPE_CACHE_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as Record<string, Recipe[]>;
+        if (parsed && typeof parsed === 'object') {
+          setRecipeCache(parsed);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.setItem(RECIPE_CACHE_KEY, JSON.stringify(recipeCache)).catch(() => {});
+  }, [recipeCache]);
+
+  useEffect(() => {
+    const cached = recipeCache[cacheKey];
+    if (cached) {
+      setAiRecipes(cached);
+      setUsingFallback(false);
+      return;
+    }
+
     let cancelled = false;
     const pantryNames = items.map((item) => item.name).filter(Boolean);
     if (pantryNames.length === 0) {
@@ -114,6 +150,9 @@ export default function RecipesScreen() {
           steps: recipe.steps,
         }));
         setAiRecipes(normalized);
+        if (normalized.length > 0) {
+          setRecipeCache((prev) => ({ ...prev, [cacheKey]: normalized }));
+        }
         setUsingFallback(ENABLE_RECIPE_FALLBACK && normalized.length === 0);
       } catch {
         if (!cancelled) {
@@ -129,7 +168,7 @@ export default function RecipesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [items, selectedCategory]);
+  }, [items, selectedCategory, recipeCache, cacheKey]);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -178,7 +217,17 @@ export default function RecipesScreen() {
                 Match: {availableCount}/{recipe.ingredients.length} ingredients in pantry
               </Text>
               {missing.length > 0 ? (
-                <Text style={styles.missingText}>Missing: {missing.join(', ')}</Text>
+                <View style={styles.missingWrap} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.missingText}>Missing: {missing.join(', ')}</Text>
+                  <Pressable
+                    onPress={() => addGroceryFromText(missing.join(', '))}
+                    style={({ pressed }) => [
+                      styles.addMissingButton,
+                      { backgroundColor: palette.tint, opacity: pressed ? 0.85 : 1 },
+                    ]}>
+                    <Text style={styles.addMissingButtonText}>Add missing to groceries</Text>
+                  </Pressable>
+                </View>
               ) : (
                 <Text style={styles.readyText}>You have everything for this recipe.</Text>
               )}
@@ -263,6 +312,21 @@ const styles = StyleSheet.create({
   missingText: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  missingWrap: {
+    marginTop: 2,
+  },
+  addMissingButton: {
+    marginTop: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  addMissingButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
   },
   readyText: {
     fontSize: 14,
