@@ -1,9 +1,8 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Image, Modal, Pressable, StyleSheet } from 'react-native';
+import { Alert, Animated, Image, Pressable, StyleSheet } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
 import Colors from '@/constants/Colors';
@@ -18,11 +17,7 @@ export default function FridgeScreen() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [detectedTargets, setDetectedTargets] = useState<DetectedIngredient[]>([]);
   const [visibleTargetCount, setVisibleTargetCount] = useState(0);
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [pendingLibraryPick, setPendingLibraryPick] = useState(false);
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const pulse = useRef(new Animated.Value(0)).current;
-  const cameraRef = useRef<CameraView | null>(null);
 
   useEffect(() => {
     if (!isAnalyzing) return;
@@ -51,20 +46,6 @@ export default function FridgeScreen() {
   }, [isAnalyzing, detectedTargets]);
 
   const targets = useMemo(() => detectedTargets, [detectedTargets]);
-
-  useEffect(() => {
-    if (!pendingLibraryPick || cameraOpen) return;
-    let cancelled = false;
-    (async () => {
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      if (cancelled) return;
-      await pickFromLibrary();
-      setPendingLibraryPick(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [pendingLibraryPick, cameraOpen]);
 
   async function finishDetection(detections: DetectedIngredient[]) {
     const ingredientNames = detections.map((item) => item.name).join(', ');
@@ -108,26 +89,14 @@ export default function FridgeScreen() {
       Alert.alert('Camera', 'Camera access is needed to photograph your fridge.');
       return;
     }
-    if (!cameraPermission?.granted) {
-      const permission = await requestCameraPermission();
-      if (!permission.granted) return;
-    }
-    setCameraOpen(true);
-  }
-
-  async function captureFromCustomCamera() {
-    const photo = await cameraRef.current?.takePictureAsync({
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
       quality: 0.85,
       base64: true,
     });
-    if (!photo) return;
-    setCameraOpen(false);
-    await processPickedAsset({
-      uri: photo.uri,
-      width: photo.width,
-      height: photo.height,
-      base64: photo.base64 ?? undefined,
-    } as ImagePicker.ImagePickerAsset);
+    if (!result.canceled && result.assets[0]) {
+      await processPickedAsset(result.assets[0]);
+    }
   }
 
   async function pickFromLibrary() {
@@ -145,11 +114,6 @@ export default function FridgeScreen() {
     if (!result.canceled && result.assets[0]) {
       await processPickedAsset(result.assets[0]);
     }
-  }
-
-  async function pickFromLibraryInCamera() {
-    setPendingLibraryPick(true);
-    setCameraOpen(false);
   }
 
   if (isAnalyzing && fridgeImageUri) {
@@ -191,9 +155,15 @@ export default function FridgeScreen() {
           {fridgeImageUri ? (
             <>
               <Image source={{ uri: fridgeImageUri }} style={styles.photo} resizeMode="cover" />
-              <View style={styles.cameraBadge} lightColor="transparent" darkColor="transparent">
-                <FontAwesome name="camera" size={24} color="#fff" />
-              </View>
+              <Pressable
+                onPress={pickFromLibrary}
+                style={({ pressed }) => [
+                  styles.cameraBadge,
+                  { opacity: pressed ? 0.7 : 1 },
+                ]}
+                hitSlop={8}>
+                <FontAwesome name="photo" size={22} color="#fff" />
+              </Pressable>
             </>
           ) : (
             <View style={styles.capturePrompt} lightColor="transparent" darkColor="transparent">
@@ -203,23 +173,6 @@ export default function FridgeScreen() {
           )}
         </View>
       </Pressable>
-      <Modal visible={cameraOpen} animationType="slide" onRequestClose={() => setCameraOpen(false)}>
-        <View style={styles.cameraModal} lightColor="#000" darkColor="#000">
-          <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
-          <View style={styles.cameraControls} lightColor="transparent" darkColor="transparent">
-            <Pressable onPress={pickFromLibraryInCamera} style={styles.cameraControlLeft}>
-              <FontAwesome name="photo" size={28} color="#fff" />
-              <Text style={styles.cameraControlLabel}>Upload</Text>
-            </Pressable>
-            <Pressable onPress={captureFromCustomCamera} style={styles.captureButtonOuter}>
-              <View style={styles.captureButtonInner} />
-            </Pressable>
-            <Pressable onPress={() => setCameraOpen(false)} style={styles.cameraControlRight}>
-              <FontAwesome name="close" size={28} color="#fff" />
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -305,52 +258,5 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 17,
     fontWeight: '600',
-  },
-  cameraModal: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  cameraControls: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 30,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 26,
-    zIndex: 10,
-  },
-  cameraControlLeft: {
-    width: 84,
-    height: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cameraControlRight: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  captureButtonOuter: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    borderWidth: 4,
-    borderColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  captureButtonInner: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#fff',
-  },
-  cameraControlLabel: {
-    color: '#fff',
-    fontSize: 12,
-    marginTop: 4,
   },
 });
