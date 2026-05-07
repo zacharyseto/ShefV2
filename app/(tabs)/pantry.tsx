@@ -2,7 +2,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Stack } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Modal, Pressable, SectionList, StyleSheet, TextInput, View as RNView } from 'react-native';
+import { Animated, Modal, Pressable, SectionList, StyleSheet, TextInput } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 
 import { Text, View } from '@/components/Themed';
@@ -14,6 +14,7 @@ type PantrySection = {
   title: string;
   color: string;
   icon: string;
+  iconKind: 'mdi' | 'emoji';
   data: {
     id: string;
     name: string;
@@ -21,10 +22,10 @@ type PantrySection = {
 };
 
 const GROUPS = [
-  { title: 'Protein', color: '#ef4444', icon: 'food-steak' },
-  { title: 'Veggies', color: '#22c55e', icon: 'carrot' },
-  { title: 'Dairy', color: '#3b82f6', icon: 'milk' },
-  { title: 'Fruits', color: '#f97316', icon: 'fruit-pear' },
+  { title: 'Protein', color: '#ef4444', icon: '🥩', iconKind: 'emoji' as const },
+  { title: 'Veggies', color: '#22c55e', icon: 'carrot', iconKind: 'mdi' as const },
+  { title: 'Dairy', color: '#3b82f6', icon: '🥛', iconKind: 'emoji' as const },
+  { title: 'Fruits', color: '#f97316', icon: '🍐', iconKind: 'emoji' as const },
 ] as const;
 
 function toDisplayName(name: string): string {
@@ -67,6 +68,7 @@ export default function PantryScreen() {
       title: group.title,
       color: group.color,
       icon: group.icon,
+      iconKind: group.iconKind,
       data: grouped.get(group.title) ?? [],
     })).filter((section) => section.data.length > 0);
   }, [items]);
@@ -113,12 +115,16 @@ export default function PantryScreen() {
           ItemSeparatorComponent={() => <View style={styles.sep} lightColor="#e4e4e7" darkColor="#3f3f46" />}
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader} lightColor="transparent" darkColor="transparent">
-              <MaterialCommunityIcons
-                name={section.icon as never}
-                size={18}
-                color={section.color}
-                style={styles.sectionIcon}
-              />
+              {section.iconKind === 'mdi' ? (
+                <MaterialCommunityIcons
+                  name={section.icon as never}
+                  size={18}
+                  color={section.color}
+                  style={styles.sectionIcon}
+                />
+              ) : (
+                <Text style={styles.emojiIcon}>{section.icon}</Text>
+              )}
               <Text style={styles.sectionTitle}>{section.title}</Text>
             </View>
           )}
@@ -132,7 +138,7 @@ export default function PantryScreen() {
                   extrapolate: 'clamp',
                 });
                 return (
-                  <RNView style={[styles.swipeDeleteRow, { transform: [{ translateX }] }]}>
+                  <Animated.View style={[styles.swipeDeleteRow, { transform: [{ translateX }] }]}>
                     <Pressable
                       onPress={() => removeItem(item.id)}
                       style={styles.swipeDelete}
@@ -140,7 +146,7 @@ export default function PantryScreen() {
                       accessibilityLabel={`Delete ${item.name}`}>
                       <FontAwesome name="trash-o" size={20} color="#fff" />
                     </Pressable>
-                  </RNView>
+                  </Animated.View>
                 );
               }}>
               <View style={styles.row} lightColor="transparent" darkColor="transparent">
@@ -216,6 +222,10 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   sectionIcon: {
+    marginRight: 8,
+  },
+  emojiIcon: {
+    fontSize: 18,
     marginRight: 8,
   },
   sectionTitle: {

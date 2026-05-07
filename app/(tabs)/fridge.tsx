@@ -61,17 +61,6 @@ export default function FridgeScreen() {
     router.push('/pantry');
   }
 
-  async function openCamera() {
-    if (!cameraPermission?.granted) {
-      const permission = await requestCameraPermission();
-      if (!permission.granted) {
-        Alert.alert('Camera', 'Camera access is needed to photograph your fridge.');
-        return;
-      }
-    }
-    setCameraOpen(true);
-  }
-
   async function processPickedAsset(asset: ImagePicker.ImagePickerAsset) {
     setFridgeImageUri(asset.uri);
     setIsAnalyzing(true);
@@ -99,7 +88,16 @@ export default function FridgeScreen() {
   }
 
   async function pickFromCamera() {
-    await openCamera();
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Camera', 'Camera access is needed to photograph your fridge.');
+      return;
+    }
+    if (!cameraPermission?.granted) {
+      const permission = await requestCameraPermission();
+      if (!permission.granted) return;
+    }
+    setCameraOpen(true);
   }
 
   async function captureFromCustomCamera() {
@@ -117,7 +115,9 @@ export default function FridgeScreen() {
     } as ImagePicker.ImagePickerAsset);
   }
 
-  async function pickFromLibrary() {
+  async function pickFromLibraryInCamera() {
+    setCameraOpen(false);
+    await new Promise((resolve) => setTimeout(resolve, 300));
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Photos', 'Photo library access is needed to upload a fridge picture.');
@@ -132,12 +132,6 @@ export default function FridgeScreen() {
     if (!result.canceled && result.assets[0]) {
       await processPickedAsset(result.assets[0]);
     }
-  }
-
-  async function pickFromLibraryInCamera() {
-    setCameraOpen(false);
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    await pickFromLibrary();
   }
 
   if (isAnalyzing && fridgeImageUri) {
@@ -190,19 +184,6 @@ export default function FridgeScreen() {
             </View>
           )}
         </View>
-      </Pressable>
-      <Pressable
-        disabled={isAnalyzing}
-        onPress={pickFromLibrary}
-        style={({ pressed }) => [
-          styles.uploadButton,
-          {
-            backgroundColor: palette.tint,
-            opacity: isAnalyzing ? 0.45 : pressed ? 0.85 : 1,
-          },
-        ]}>
-        <FontAwesome name="photo" size={18} color="#fff" style={styles.buttonIcon} />
-        <Text style={styles.buttonLabel}>Upload</Text>
       </Pressable>
       <Modal visible={cameraOpen} animationType="slide" onRequestClose={() => setCameraOpen(false)}>
         <View style={styles.cameraModal} lightColor="#000" darkColor="#000">
@@ -304,23 +285,6 @@ const styles = StyleSheet.create({
   capturePromptText: {
     marginTop: 12,
     fontSize: 17,
-    fontWeight: '600',
-  },
-  uploadButton: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 10,
-  },
-  buttonIcon: {
-    marginRight: 8,
-  },
-  buttonLabel: {
-    color: '#fff',
-    fontSize: 16,
     fontWeight: '600',
   },
   cameraModal: {
