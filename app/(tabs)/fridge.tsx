@@ -19,6 +19,7 @@ export default function FridgeScreen() {
   const [detectedTargets, setDetectedTargets] = useState<DetectedIngredient[]>([]);
   const [visibleTargetCount, setVisibleTargetCount] = useState(0);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [pendingLibraryPick, setPendingLibraryPick] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const pulse = useRef(new Animated.Value(0)).current;
   const cameraRef = useRef<CameraView | null>(null);
@@ -50,6 +51,20 @@ export default function FridgeScreen() {
   }, [isAnalyzing, detectedTargets]);
 
   const targets = useMemo(() => detectedTargets, [detectedTargets]);
+
+  useEffect(() => {
+    if (!pendingLibraryPick || cameraOpen) return;
+    let cancelled = false;
+    (async () => {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      if (cancelled) return;
+      await pickFromLibrary();
+      setPendingLibraryPick(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingLibraryPick, cameraOpen]);
 
   async function finishDetection(detections: DetectedIngredient[]) {
     const ingredientNames = detections.map((item) => item.name).join(', ');
@@ -115,9 +130,7 @@ export default function FridgeScreen() {
     } as ImagePicker.ImagePickerAsset);
   }
 
-  async function pickFromLibraryInCamera() {
-    setCameraOpen(false);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+  async function pickFromLibrary() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Photos', 'Photo library access is needed to upload a fridge picture.');
@@ -132,6 +145,11 @@ export default function FridgeScreen() {
     if (!result.canceled && result.assets[0]) {
       await processPickedAsset(result.assets[0]);
     }
+  }
+
+  async function pickFromLibraryInCamera() {
+    setPendingLibraryPick(true);
+    setCameraOpen(false);
   }
 
   if (isAnalyzing && fridgeImageUri) {
@@ -191,6 +209,7 @@ export default function FridgeScreen() {
           <View style={styles.cameraControls} lightColor="transparent" darkColor="transparent">
             <Pressable onPress={pickFromLibraryInCamera} style={styles.cameraControlLeft}>
               <FontAwesome name="photo" size={28} color="#fff" />
+              <Text style={styles.cameraControlLabel}>Upload</Text>
             </Pressable>
             <Pressable onPress={captureFromCustomCamera} style={styles.captureButtonOuter}>
               <View style={styles.captureButtonInner} />
@@ -303,8 +322,8 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   cameraControlLeft: {
-    width: 44,
-    height: 44,
+    width: 84,
+    height: 64,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -328,5 +347,10 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 30,
     backgroundColor: '#fff',
+  },
+  cameraControlLabel: {
+    color: '#fff',
+    fontSize: 12,
+    marginTop: 4,
   },
 });

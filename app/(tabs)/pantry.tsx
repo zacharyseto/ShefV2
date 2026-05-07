@@ -114,7 +114,10 @@ export default function PantryScreen() {
           SectionSeparatorComponent={() => <View style={styles.sectionGap} lightColor="transparent" darkColor="transparent" />}
           ItemSeparatorComponent={() => <View style={styles.sep} lightColor="#e4e4e7" darkColor="#3f3f46" />}
           renderSectionHeader={({ section }) => (
-            <View style={styles.sectionHeader} lightColor="transparent" darkColor="transparent">
+            <View
+              style={[styles.sectionHeader, { borderLeftColor: section.color }]}
+              lightColor="#f8fafc"
+              darkColor="#18181b">
               {section.iconKind === 'mdi' ? (
                 <MaterialCommunityIcons
                   name={section.icon as never}
@@ -128,7 +131,7 @@ export default function PantryScreen() {
               <Text style={styles.sectionTitle}>{section.title}</Text>
             </View>
           )}
-          renderItem={({ item }) => (
+          renderItem={({ item, section }) => (
             <Swipeable
               overshootRight={false}
               renderRightActions={(_, dragX) => {
@@ -149,9 +152,12 @@ export default function PantryScreen() {
                   </Animated.View>
                 );
               }}>
-              <View style={styles.row} lightColor="transparent" darkColor="transparent">
+              <View
+                style={[styles.row, { borderLeftColor: section.color }]}
+                lightColor="#fafafa"
+                darkColor="#111827">
                 <View style={styles.rowMain}>
-                  <Text style={styles.itemName}>{toDisplayName(item.name)}</Text>
+                  <Text style={[styles.itemName, { color: section.color }]}>{toDisplayName(item.name)}</Text>
                 </View>
               </View>
             </Swipeable>
@@ -219,7 +225,11 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+    paddingLeft: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   sectionIcon: {
     marginRight: 8,
@@ -251,7 +261,15 @@ const styles = StyleSheet.create({
   sep: {
     height: StyleSheet.hairlineWidth,
   },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderLeftWidth: 3,
+    paddingLeft: 10,
+    borderRadius: 6,
+  },
   swipeDeleteRow: {
     width: 72,
     alignItems: 'center',
