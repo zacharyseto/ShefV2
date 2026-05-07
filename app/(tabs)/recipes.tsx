@@ -1,12 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { usePantry } from '@/context/PantryContext';
+import { AiRecipe, generateRecipeSuggestions, RecipeCategory } from '@/lib/ingredientVision';
 import { useColorScheme } from '@/components/useColorScheme';
-
-type RecipeCategory = 'parties' | 'balanced meals' | 'appetizers';
 
 type Recipe = {
   id: string;
@@ -69,13 +68,17 @@ export default function RecipesScreen() {
   const { items } = usePantry();
   const [selectedCategory, setSelectedCategory] = useState<RecipeCategory>('balanced meals');
   const [expandedRecipeId, setExpandedRecipeId] = useState<string | null>(null);
+  const [aiRecipes, setAiRecipes] = useState<Recipe[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [usingFallback, setUsingFallback] = useState(false);
 
   const pantrySet = useMemo(() => {
     return new Set(items.map((item) => item.name.toLowerCase()));
   }, [items]);
 
   const suggestions = useMemo(() => {
-    const inCategory = HARD_CODED_RECIPES.filter((recipe) => recipe.category === selectedCategory);
+    const source = aiRecipes.length > 0 ? aiRecipes : HARD_CODED_RECIPES;
+    const inCategory = source.filter((recipe) => recipe.category === selectedCategory);
     return inCategory
       .map((recipe) => {
         const available = recipe.ingredients.filter((ing) => pantrySet.has(ing.toLowerCase()));
@@ -86,7 +89,46 @@ export default function RecipesScreen() {
         };
       })
       .sort((a, b) => b.availableCount - a.availableCount);
-  }, [pantrySet, selectedCategory]);
+  }, [aiRecipes, pantrySet, selectedCategory]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const pantryNames = items.map((item) => item.name).filter(Boolean);
+    if (pantryNames.length === 0) {
+      setAiRecipes([]);
+      setUsingFallback(true);
+      return;
+    }
+
+    async function run() {
+      setIsLoading(true);
+      try {
+        const recipes = await generateRecipeSuggestions(pantryNames, selectedCategory);
+        if (cancelled) return;
+        const normalized = recipes.map((recipe: AiRecipe, idx: number) => ({
+          id: `ai-${selectedCategory}-${idx}-${recipe.title}`,
+          title: recipe.title,
+          category: recipe.category,
+          ingredients: recipe.ingredients,
+          steps: recipe.steps,
+        }));
+        setAiRecipes(normalized);
+        setUsingFallback(normalized.length === 0);
+      } catch {
+        if (!cancelled) {
+          setAiRecipes([]);
+          setUsingFallback(true);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [items, selectedCategory]);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -94,6 +136,8 @@ export default function RecipesScreen() {
       <Text style={styles.subtitle}>
         Suggestions are based on what is currently in your pantry. Choose a category to explore.
       </Text>
+      {isLoading ? <Text style={styles.badge}>Generating AI recipes...</Text> : null}
+      {usingFallback ? <Text style={styles.badge}>Using fallback recipes.</Text> : null}
 
       <View style={styles.chipsRow} lightColor="transparent" darkColor="transparent">
         {CATEGORIES.map((category) => {
@@ -178,6 +222,11 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 14,
     flexWrap: 'wrap',
+  },
+  badge: {
+    fontSize: 13,
+    marginBottom: 10,
+    color: '#71717a',
   },
   chip: {
     borderWidth: 1,

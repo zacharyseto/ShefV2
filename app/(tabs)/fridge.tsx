@@ -29,6 +29,7 @@ export default function FridgeScreen() {
   const { fridgeImageUri, setFridgeImageUri, addIngredientsFromText } = usePantry();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastDetected, setLastDetected] = useState<string[]>([]);
+  const [visibleTargetCount, setVisibleTargetCount] = useState(0);
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -42,6 +43,20 @@ export default function FridgeScreen() {
     loop.start();
     return () => loop.stop();
   }, [isAnalyzing, pulse]);
+
+  useEffect(() => {
+    if (!isAnalyzing || lastDetected.length === 0) return;
+    setVisibleTargetCount(0);
+    let count = 0;
+    const timer = setInterval(() => {
+      count += 1;
+      setVisibleTargetCount(count);
+      if (count >= lastDetected.length) {
+        clearInterval(timer);
+      }
+    }, 280);
+    return () => clearInterval(timer);
+  }, [isAnalyzing, lastDetected]);
 
   const targets = useMemo(
     () =>
@@ -65,6 +80,7 @@ export default function FridgeScreen() {
     setFridgeImageUri(asset.uri);
     setIsAnalyzing(true);
     setLastDetected([]);
+    setVisibleTargetCount(0);
     try {
       if (!asset.base64) {
         throw new Error('No image data');
@@ -128,7 +144,7 @@ export default function FridgeScreen() {
               <Image source={{ uri: fridgeImageUri }} style={styles.photo} resizeMode="cover" />
               {isAnalyzing ? (
                 <View style={styles.overlay} lightColor="transparent" darkColor="transparent">
-                  {targets.map((target) => (
+                  {targets.slice(0, visibleTargetCount).map((target) => (
                     <Animated.View
                       key={target.name}
                       style={[
@@ -180,13 +196,6 @@ export default function FridgeScreen() {
             <Text style={[styles.buttonLabelSecondary, { color: palette.tint }]}>Upload</Text>
           </Pressable>
         </View>
-
-        {lastDetected.length > 0 ? (
-          <View style={styles.results} lightColor="#f4f4f5" darkColor="#27272a">
-            <Text style={styles.resultsTitle}>Last detected ingredients</Text>
-            <Text style={styles.resultsText}>{lastDetected.join(', ')}</Text>
-          </View>
-        ) : null}
 
         {fridgeImageUri ? (
           <Pressable onPress={() => setFridgeImageUri(null)} style={styles.clearPhoto}>
@@ -296,19 +305,5 @@ const styles = StyleSheet.create({
   clearPhoto: {
     alignSelf: 'flex-start',
     marginTop: 14,
-  },
-  results: {
-    marginTop: 14,
-    padding: 12,
-    borderRadius: 10,
-  },
-  resultsTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  resultsText: {
-    fontSize: 15,
-    lineHeight: 22,
   },
 });
