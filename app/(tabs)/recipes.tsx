@@ -83,6 +83,7 @@ export default function RecipesScreen() {
   const [recipeDetailsById, setRecipeDetailsById] = useState<Record<string, AiRecipe>>({});
   const [isLoadingTitles, setIsLoadingTitles] = useState(false);
   const [loadingDetailId, setLoadingDetailId] = useState<string | null>(null);
+  const [preloadingDetailIds, setPreloadingDetailIds] = useState<Record<string, boolean>>({});
   const [usingFallback, setUsingFallback] = useState(false);
   const [titlesCache, setTitlesCache] = useState<Record<string, Recipe[]>>({});
   const [detailsCache, setDetailsCache] = useState<Record<string, AiRecipe>>({});
@@ -194,33 +195,52 @@ export default function RecipesScreen() {
     if (recipeTitles.length === 0 || pantryNames.length === 0) return;
 
     async function preload() {
-      for (const recipe of recipeTitles) {
-        if (cancelled) return;
-        if (recipeDetailsById[recipe.id]) continue;
-        const cacheDetailKey = `${selectedCategory}::${recipe.title.toLowerCase()}`;
-        const cached = detailsCache[cacheDetailKey];
-        if (cached) {
-          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-          setRecipeDetailsById((prev) => ({ ...prev, [recipe.id]: cached }));
-          continue;
-        }
-        try {
-          const detail = await generateRecipeDetails(pantryNames, selectedCategory, recipe.title);
-          if (!detail || cancelled) continue;
-          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-          setRecipeDetailsById((prev) => ({ ...prev, [recipe.id]: detail }));
-          setDetailsCache((prev) => ({ ...prev, [cacheDetailKey]: detail }));
-        } catch {
-          // keep moving so one failed detail does not block others
+      const queue = [...recipeTitles];
+      const workers = Math.min(3, queue.length);
+
+      async function runWorker() {
+        while (!cancelled && queue.length > 0) {
+          const recipe = queue.shift();
+          if (!recipe) return;
+          const cacheDetailKey = `${selectedCategory}::${recipe.title.toLowerCase()}`;
+          if (recipeDetailsById[recipe.id]) continue;
+
+          const cached = detailsCache[cacheDetailKey];
+          if (cached) {
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setRecipeDetailsById((prev) => ({ ...prev, [recipe.id]: cached }));
+            continue;
+          }
+
+          setPreloadingDetailIds((prev) => ({ ...prev, [recipe.id]: true }));
+          try {
+            const detail = await generateRecipeDetails(pantryNames, selectedCategory, recipe.title);
+            if (!detail || cancelled) continue;
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setRecipeDetailsById((prev) => ({ ...prev, [recipe.id]: detail }));
+            setDetailsCache((prev) => ({ ...prev, [cacheDetailKey]: detail }));
+          } catch {
+            // keep moving so one failed detail does not block others
+          } finally {
+            if (!cancelled) {
+              setPreloadingDetailIds((prev) => {
+                const next = { ...prev };
+                delete next[recipe.id];
+                return next;
+              });
+            }
+          }
         }
       }
+
+      await Promise.all(Array.from({ length: workers }, () => runWorker()));
     }
 
     preload();
     return () => {
       cancelled = true;
     };
-  }, [recipeTitles, items, selectedCategory, detailsCache, recipeDetailsById]);
+  }, [recipeTitles, items, selectedCategory, detailsCache]);
 
   async function onLoadRecipe(recipe: Recipe) {
     const cacheDetailKey = `${selectedCategory}::${recipe.title.toLowerCase()}`;
@@ -287,6 +307,7 @@ export default function RecipesScreen() {
         const isExpanded = expandedRecipeId === recipe.id;
         const isAdded = !!addedRecipeIds[recipe.id];
         const detail = recipeDetailsById[recipe.id];
+        const isPreloading = !!preloadingDetailIds[recipe.id];
         const ingredientLines = detail
           ? detail.ingredients.map((ing) => ing.trim()).filter(Boolean)
           : [];
@@ -301,17 +322,11 @@ export default function RecipesScreen() {
               {!detail ? (
                 <View style={styles.missingWrap} lightColor="transparent" darkColor="transparent">
                   <Text style={styles.matchText}>Have --/-- ingredients</Text>
-                  <Pressable
-                    onPress={() => onLoadRecipe(recipe)}
-                    style={({ pressed }) => [
-                      styles.addMissingButton,
-                      { backgroundColor: palette.tint, opacity: pressed ? 0.85 : 1 },
-                    ]}
-                    disabled={loadingDetailId === recipe.id}>
-                    <Text style={styles.addMissingButtonText}>
-                      {loadingDetailId === recipe.id ? 'Loading recipe...' : 'Load recipe'}
-                    </Text>
-                  </Pressable>
+                  <Text style={styles.badgeInline}>
+                    {loadingDetailId === recipe.id || isPreloading
+                      ? 'Preparing recipe details...'
+                      : 'Queued to preload recipe details...'}
+                  </Text>
                 </View>
               ) : missing.length > 0 ? (
                 <View style={styles.missingWrap} lightColor="transparent" darkColor="transparent">
@@ -397,6 +412,11 @@ const styles = StyleSheet.create({
   badge: {
     fontSize: 13,
     marginBottom: 10,
+    color: '#71717a',
+  },
+  badgeInline: {
+    fontSize: 13,
+    marginTop: 6,
     color: '#71717a',
   },
   chip: {
