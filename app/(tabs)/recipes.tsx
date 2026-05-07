@@ -12,6 +12,7 @@ import {
   generateRecipeTitles,
   RecipeCategory,
 } from '@/lib/ingredientVision';
+import { partitionRecipeAgainstPantry } from '@/lib/recipePantryMatch';
 import { useColorScheme } from '@/components/useColorScheme';
 
 type Recipe = {
@@ -102,7 +103,10 @@ export default function RecipesScreen() {
   );
 
   const cacheKey = `${selectedCategory}::${pantrySignature}`;
-  const pantrySet = useMemo(() => new Set(items.map((item) => item.name.toLowerCase())), [items]);
+  const pantryNamesLower = useMemo(
+    () => items.map((item) => item.name.toLowerCase().trim()).filter(Boolean),
+    [items]
+  );
 
   useEffect(() => {
     AsyncStorage.getItem(RECIPE_TITLES_CACHE_KEY)
@@ -283,12 +287,13 @@ export default function RecipesScreen() {
         const isExpanded = expandedRecipeId === recipe.id;
         const isAdded = !!addedRecipeIds[recipe.id];
         const detail = recipeDetailsById[recipe.id];
-        const haveCount = detail
-          ? detail.ingredients.filter((ing) => pantrySet.has(ing.toLowerCase())).length
-          : 0;
-        const missing = detail
-          ? detail.ingredients.filter((ing) => !pantrySet.has(ing.toLowerCase()))
+        const ingredientLines = detail
+          ? detail.ingredients.map((ing) => ing.trim()).filter(Boolean)
           : [];
+        const { haveCount, missing } = detail
+          ? partitionRecipeAgainstPantry(ingredientLines, pantryNamesLower)
+          : { haveCount: 0, missing: [] };
+        const ingredientTotal = ingredientLines.length;
         return (
           <View key={recipe.id} style={styles.card} lightColor="#f8fafc" darkColor="#18181b">
             <Pressable onPress={() => (detail ? setExpandedRecipeId(isExpanded ? null : recipe.id) : onLoadRecipe(recipe))}>
@@ -311,7 +316,7 @@ export default function RecipesScreen() {
               ) : missing.length > 0 ? (
                 <View style={styles.missingWrap} lightColor="transparent" darkColor="transparent">
                   <Text style={styles.matchText}>
-                    Have {haveCount}/{detail.ingredients.length} ingredients
+                    Have {haveCount}/{ingredientTotal} ingredients
                   </Text>
                   <Text style={styles.missingText}>Missing: {missing.join(', ')}</Text>
                   <Pressable
@@ -337,7 +342,7 @@ export default function RecipesScreen() {
               ) : (
                 <View style={styles.missingWrap} lightColor="transparent" darkColor="transparent">
                   <Text style={styles.matchText}>
-                    Have {haveCount}/{detail.ingredients.length} ingredients
+                    Have {haveCount}/{ingredientTotal} ingredients
                   </Text>
                   <Text style={styles.readyText}>You have everything for this recipe.</Text>
                 </View>
