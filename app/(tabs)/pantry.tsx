@@ -1,7 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Stack } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Modal, Pressable, SectionList, StyleSheet, TextInput } from 'react-native';
+import { Animated, Modal, Pressable, SectionList, StyleSheet, TextInput } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 
 import { Text, View } from '@/components/Themed';
@@ -12,6 +12,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 type PantrySection = {
   title: string;
   color: string;
+  icon: React.ComponentProps<typeof FontAwesome>['name'];
   data: {
     id: string;
     name: string;
@@ -19,12 +20,13 @@ type PantrySection = {
 };
 
 const GROUPS = [
-  { title: 'Produce', color: '#22c55e' },
-  { title: 'Protein', color: '#ef4444' },
-  { title: 'Dairy', color: '#3b82f6' },
-  { title: 'Grains', color: '#f59e0b' },
-  { title: 'Pantry', color: '#8b5cf6' },
-  { title: 'Other', color: '#64748b' },
+  { title: 'Fruits', color: '#f97316', icon: 'apple' },
+  { title: 'Vegetables', color: '#22c55e', icon: 'leaf' },
+  { title: 'Protein', color: '#ef4444', icon: 'cutlery' },
+  { title: 'Dairy', color: '#3b82f6', icon: 'tint' },
+  { title: 'Grains', color: '#f59e0b', icon: 'pagelines' },
+  { title: 'Pantry', color: '#8b5cf6', icon: 'archive' },
+  { title: 'Other', color: '#64748b', icon: 'circle' },
 ] as const;
 
 function toDisplayName(name: string): string {
@@ -34,8 +36,11 @@ function toDisplayName(name: string): string {
 
 function groupForIngredient(name: string): (typeof GROUPS)[number]['title'] {
   const n = name.toLowerCase();
-  if (/(spinach|lettuce|tomato|tomatoes|onion|garlic|pepper|carrot|broccoli|apple|banana|fruit|vegetable)/.test(n)) {
-    return 'Produce';
+  if (/(apple|banana|orange|berry|berries|grape|melon|mango|pear|peach|fruit)/.test(n)) {
+    return 'Fruits';
+  }
+  if (/(spinach|lettuce|tomato|tomatoes|onion|garlic|pepper|carrot|broccoli|cucumber|zucchini|vegetable)/.test(n)) {
+    return 'Vegetables';
   }
   if (/(chicken|beef|pork|fish|salmon|egg|eggs|tofu|beans|lentil|turkey)/.test(n)) {
     return 'Protein';
@@ -69,6 +74,7 @@ export default function PantryScreen() {
     return GROUPS.map((group) => ({
       title: group.title,
       color: group.color,
+      icon: group.icon,
       data: grouped.get(group.title) ?? [],
     })).filter((section) => section.data.length > 0);
   }, [items]);
@@ -115,25 +121,34 @@ export default function PantryScreen() {
           ItemSeparatorComponent={() => <View style={styles.sep} lightColor="#e4e4e7" darkColor="#3f3f46" />}
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader} lightColor="transparent" darkColor="transparent">
-              <View style={[styles.sectionDot, { backgroundColor: section.color }]} />
+              <FontAwesome name={section.icon} size={16} color={section.color} style={styles.sectionIcon} />
               <Text style={styles.sectionTitle}>{section.title}</Text>
             </View>
           )}
-          renderItem={({ item }) => (
+          renderItem={({ item, section }) => (
             <Swipeable
               overshootRight={false}
-              renderRightActions={() => (
-                <Pressable
-                  onPress={() => removeItem(item.id)}
-                  style={styles.swipeDelete}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Delete ${item.name}`}>
-                  <FontAwesome name="trash-o" size={20} color="#fff" />
-                </Pressable>
-              )}>
+              renderRightActions={(_, dragX) => {
+                const translateX = dragX.interpolate({
+                  inputRange: [-120, 0],
+                  outputRange: [0, 72],
+                  extrapolate: 'clamp',
+                });
+                return (
+                  <Animated.View style={{ transform: [{ translateX }] }}>
+                    <Pressable
+                      onPress={() => removeItem(item.id)}
+                      style={styles.swipeDelete}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Delete ${item.name}`}>
+                      <FontAwesome name="trash-o" size={20} color="#fff" />
+                    </Pressable>
+                  </Animated.View>
+                );
+              }}>
               <View style={styles.row} lightColor="transparent" darkColor="transparent">
                 <View style={styles.rowMain}>
-                  <FontAwesome name="leaf" size={17} color={palette.tint} style={styles.leafIcon} />
+                  <FontAwesome name={section.icon} size={16} color={section.color} style={styles.leafIcon} />
                   <Text style={styles.itemName}>{toDisplayName(item.name)}</Text>
                 </View>
               </View>
@@ -204,10 +219,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
-  sectionDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  sectionIcon: {
     marginRight: 8,
   },
   sectionTitle: {

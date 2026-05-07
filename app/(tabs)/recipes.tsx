@@ -247,6 +247,9 @@ export default function RecipesScreen() {
         const isExpanded = expandedRecipeId === recipe.id;
         const isAdded = !!addedRecipeIds[recipe.id];
         const detail = recipeDetailsById[recipe.id];
+        const haveCount = detail
+          ? detail.ingredients.filter((ing) => pantrySet.has(ing.toLowerCase())).length
+          : 0;
         const missing = detail
           ? detail.ingredients.filter((ing) => !pantrySet.has(ing.toLowerCase()))
           : [];
@@ -270,6 +273,9 @@ export default function RecipesScreen() {
                 </View>
               ) : missing.length > 0 ? (
                 <View style={styles.missingWrap} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.matchText}>
+                    Have {haveCount}/{detail.ingredients.length} ingredients
+                  </Text>
                   <Text style={styles.missingText}>Missing: {missing.join(', ')}</Text>
                   <Pressable
                     onPress={() => {
@@ -292,7 +298,12 @@ export default function RecipesScreen() {
                   </Pressable>
                 </View>
               ) : (
-                <Text style={styles.readyText}>You have everything for this recipe.</Text>
+                <View style={styles.missingWrap} lightColor="transparent" darkColor="transparent">
+                  <Text style={styles.matchText}>
+                    Have {haveCount}/{detail.ingredients.length} ingredients
+                  </Text>
+                  <Text style={styles.readyText}>You have everything for this recipe.</Text>
+                </View>
               )}
               {detail ? (
                 <Text style={[styles.expandHint, { color: palette.tint }]}>
