@@ -75,7 +75,7 @@ export default function PantryScreen() {
               <View style={styles.row} lightColor="transparent" darkColor="transparent">
                 <View style={styles.rowMain}>
                   <FontAwesome name="leaf" size={17} color={palette.tint} style={styles.leafIcon} />
-                  <Text style={styles.itemName}>{item.name}</Text>
+                  <Text style={styles.itemName}>{item.name.toUpperCase()}</Text>
                 </View>
                 <FontAwesome name="angle-left" size={18} color={palette.tabIconDefault} />
               </View>

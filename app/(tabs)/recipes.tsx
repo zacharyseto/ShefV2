@@ -5,7 +5,13 @@ import { LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, UIManager
 import { Text, View } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { usePantry } from '@/context/PantryContext';
-import { AiRecipe, generateRecipeSuggestions, RecipeCategory } from '@/lib/ingredientVision';
+import {
+  AiRecipe,
+  AiRecipeTitle,
+  generateRecipeDetails,
+  generateRecipeTitles,
+  RecipeCategory,
+} from '@/lib/ingredientVision';
 import { useColorScheme } from '@/components/useColorScheme';
 
 type Recipe = {
@@ -18,7 +24,8 @@ type Recipe = {
 
 const CATEGORIES: RecipeCategory[] = ['parties', 'balanced meals', 'appetizers'];
 const ENABLE_RECIPE_FALLBACK = false;
-const RECIPE_CACHE_KEY = '@shefv2/recipes-cache-v1';
+const RECIPE_TITLES_CACHE_KEY = '@shefv2/recipes-titles-cache-v1';
+const RECIPE_DETAILS_CACHE_KEY = '@shefv2/recipes-details-cache-v1';
 
 const HARD_CODED_RECIPES: Recipe[] = [
   {
@@ -71,10 +78,13 @@ export default function RecipesScreen() {
   const { items, addGroceryFromText } = usePantry();
   const [selectedCategory, setSelectedCategory] = useState<RecipeCategory>('balanced meals');
   const [expandedRecipeId, setExpandedRecipeId] = useState<string | null>(null);
-  const [aiRecipes, setAiRecipes] = useState<Recipe[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [recipeTitles, setRecipeTitles] = useState<Recipe[]>([]);
+  const [recipeDetailsById, setRecipeDetailsById] = useState<Record<string, AiRecipe>>({});
+  const [isLoadingTitles, setIsLoadingTitles] = useState(false);
+  const [loadingDetailId, setLoadingDetailId] = useState<string | null>(null);
   const [usingFallback, setUsingFallback] = useState(false);
-  const [recipeCache, setRecipeCache] = useState<Record<string, Recipe[]>>({});
+  const [titlesCache, setTitlesCache] = useState<Record<string, Recipe[]>>({});
+  const [detailsCache, setDetailsCache] = useState<Record<string, AiRecipe>>({});
   const [addedRecipeIds, setAddedRecipeIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -82,10 +92,6 @@ export default function RecipesScreen() {
       UIManager.setLayoutAnimationEnabledExperimental(true);
     }
   }, []);
-
-  const pantrySet = useMemo(() => {
-    return new Set(items.map((item) => item.name.toLowerCase()));
-  }, [items]);
 
   const pantrySignature = useMemo(
     () =>
@@ -96,42 +102,41 @@ export default function RecipesScreen() {
   );
 
   const cacheKey = `${selectedCategory}::${pantrySignature}`;
-
-  const suggestions = useMemo(() => {
-    const source = aiRecipes.length > 0 || !ENABLE_RECIPE_FALLBACK ? aiRecipes : HARD_CODED_RECIPES;
-    const inCategory = source.filter((recipe) => recipe.category === selectedCategory);
-    return inCategory
-      .map((recipe) => {
-        const available = recipe.ingredients.filter((ing) => pantrySet.has(ing.toLowerCase()));
-        return {
-          recipe,
-          availableCount: available.length,
-          missing: recipe.ingredients.filter((ing) => !pantrySet.has(ing.toLowerCase())),
-        };
-      })
-      .sort((a, b) => b.availableCount - a.availableCount);
-  }, [aiRecipes, pantrySet, selectedCategory]);
+  const pantrySet = useMemo(() => new Set(items.map((item) => item.name.toLowerCase())), [items]);
 
   useEffect(() => {
-    AsyncStorage.getItem(RECIPE_CACHE_KEY)
+    AsyncStorage.getItem(RECIPE_TITLES_CACHE_KEY)
       .then((raw) => {
         if (!raw) return;
         const parsed = JSON.parse(raw) as Record<string, Recipe[]>;
         if (parsed && typeof parsed === 'object') {
-          setRecipeCache(parsed);
+          setTitlesCache(parsed);
+        }
+      })
+      .catch(() => {});
+    AsyncStorage.getItem(RECIPE_DETAILS_CACHE_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as Record<string, AiRecipe>;
+        if (parsed && typeof parsed === 'object') {
+          setDetailsCache(parsed);
         }
       })
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    AsyncStorage.setItem(RECIPE_CACHE_KEY, JSON.stringify(recipeCache)).catch(() => {});
-  }, [recipeCache]);
+    AsyncStorage.setItem(RECIPE_TITLES_CACHE_KEY, JSON.stringify(titlesCache)).catch(() => {});
+  }, [titlesCache]);
 
   useEffect(() => {
-    const cached = recipeCache[cacheKey];
+    AsyncStorage.setItem(RECIPE_DETAILS_CACHE_KEY, JSON.stringify(detailsCache)).catch(() => {});
+  }, [detailsCache]);
+
+  useEffect(() => {
+    const cached = titlesCache[cacheKey];
     if (cached) {
-      setAiRecipes(cached);
+      setRecipeTitles(cached);
       setUsingFallback(false);
       return;
     }
@@ -139,35 +144,35 @@ export default function RecipesScreen() {
     let cancelled = false;
     const pantryNames = items.map((item) => item.name).filter(Boolean);
     if (pantryNames.length === 0) {
-      setAiRecipes([]);
+      setRecipeTitles([]);
       setUsingFallback(ENABLE_RECIPE_FALLBACK);
       return;
     }
 
     async function run() {
-      setIsLoading(true);
+      setIsLoadingTitles(true);
       try {
-        const recipes = await generateRecipeSuggestions(pantryNames, selectedCategory);
+        const titles = await generateRecipeTitles(pantryNames, selectedCategory);
         if (cancelled) return;
-        const normalized = recipes.map((recipe: AiRecipe, idx: number) => ({
+        const normalized = titles.map((recipe: AiRecipeTitle, idx: number) => ({
           id: `ai-${selectedCategory}-${idx}-${recipe.title}`,
           title: recipe.title,
           category: recipe.category,
-          ingredients: recipe.ingredients,
-          steps: recipe.steps,
+          ingredients: [],
+          steps: [],
         }));
-        setAiRecipes(normalized);
+        setRecipeTitles(normalized);
         if (normalized.length > 0) {
-          setRecipeCache((prev) => ({ ...prev, [cacheKey]: normalized }));
+          setTitlesCache((prev) => ({ ...prev, [cacheKey]: normalized }));
         }
         setUsingFallback(ENABLE_RECIPE_FALLBACK && normalized.length === 0);
       } catch {
         if (!cancelled) {
-          setAiRecipes([]);
+          setRecipeTitles([]);
           setUsingFallback(ENABLE_RECIPE_FALLBACK);
         }
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) setIsLoadingTitles(false);
       }
     }
 
@@ -175,7 +180,31 @@ export default function RecipesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [items, selectedCategory, recipeCache, cacheKey]);
+  }, [items, selectedCategory, titlesCache, cacheKey]);
+
+  async function onLoadRecipe(recipe: Recipe) {
+    const cacheDetailKey = `${selectedCategory}::${recipe.title.toLowerCase()}`;
+    const cached = detailsCache[cacheDetailKey];
+    if (cached) {
+      setRecipeDetailsById((prev) => ({ ...prev, [recipe.id]: cached }));
+      setExpandedRecipeId(recipe.id);
+      return;
+    }
+    setLoadingDetailId(recipe.id);
+    try {
+      const detail = await generateRecipeDetails(
+        items.map((item) => item.name),
+        selectedCategory,
+        recipe.title
+      );
+      if (!detail) return;
+      setRecipeDetailsById((prev) => ({ ...prev, [recipe.id]: detail }));
+      setDetailsCache((prev) => ({ ...prev, [cacheDetailKey]: detail }));
+      setExpandedRecipeId(recipe.id);
+    } finally {
+      setLoadingDetailId(null);
+    }
+  }
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -183,9 +212,9 @@ export default function RecipesScreen() {
       <Text style={styles.subtitle}>
         Suggestions are based on what is currently in your pantry. Choose a category to explore.
       </Text>
-      {isLoading ? <Text style={styles.badge}>Generating AI recipes...</Text> : null}
+      {isLoadingTitles ? <Text style={styles.badge}>Generating recipe titles...</Text> : null}
       {usingFallback ? <Text style={styles.badge}>Using fallback recipes.</Text> : null}
-      {!usingFallback && !isLoading && aiRecipes.length === 0 ? (
+      {!usingFallback && !isLoadingTitles && recipeTitles.length === 0 ? (
         <Text style={styles.badge}>No AI recipes yet. Add pantry items and ensure API key is configured.</Text>
       ) : null}
 
@@ -214,17 +243,32 @@ export default function RecipesScreen() {
         })}
       </View>
 
-      {suggestions.map(({ recipe, availableCount, missing }) => {
+      {recipeTitles.map((recipe) => {
         const isExpanded = expandedRecipeId === recipe.id;
         const isAdded = !!addedRecipeIds[recipe.id];
+        const detail = recipeDetailsById[recipe.id];
+        const missing = detail
+          ? detail.ingredients.filter((ing) => !pantrySet.has(ing.toLowerCase()))
+          : [];
         return (
           <View key={recipe.id} style={styles.card} lightColor="#f8fafc" darkColor="#18181b">
-            <Pressable onPress={() => setExpandedRecipeId(isExpanded ? null : recipe.id)}>
+            <Pressable onPress={() => (detail ? setExpandedRecipeId(isExpanded ? null : recipe.id) : onLoadRecipe(recipe))}>
               <Text style={styles.cardTitle}>{recipe.title}</Text>
-              <Text style={styles.matchText}>
-                Match: {availableCount}/{recipe.ingredients.length} ingredients in pantry
-              </Text>
-              {missing.length > 0 ? (
+              {!detail ? (
+                <View style={styles.missingWrap} lightColor="transparent" darkColor="transparent">
+                  <Pressable
+                    onPress={() => onLoadRecipe(recipe)}
+                    style={({ pressed }) => [
+                      styles.addMissingButton,
+                      { backgroundColor: palette.tint, opacity: pressed ? 0.85 : 1 },
+                    ]}
+                    disabled={loadingDetailId === recipe.id}>
+                    <Text style={styles.addMissingButtonText}>
+                      {loadingDetailId === recipe.id ? 'Loading recipe...' : 'Load recipe'}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : missing.length > 0 ? (
                 <View style={styles.missingWrap} lightColor="transparent" darkColor="transparent">
                   <Text style={styles.missingText}>Missing: {missing.join(', ')}</Text>
                   <Pressable
@@ -250,15 +294,17 @@ export default function RecipesScreen() {
               ) : (
                 <Text style={styles.readyText}>You have everything for this recipe.</Text>
               )}
-              <Text style={[styles.expandHint, { color: palette.tint }]}>
-                {isExpanded ? 'Hide steps' : 'View steps'}
-              </Text>
+              {detail ? (
+                <Text style={[styles.expandHint, { color: palette.tint }]}>
+                  {isExpanded ? 'Hide steps' : 'View steps'}
+                </Text>
+              ) : null}
             </Pressable>
 
-            {isExpanded ? (
+            {isExpanded && detail ? (
               <View style={styles.stepsWrap} lightColor="transparent" darkColor="transparent">
-                {recipe.steps.map((step, idx) => (
-                  <Text key={`${recipe.id}-${idx}`} style={styles.stepText}>
+                {detail.steps.map((step, idx) => (
+                  <Text key={`${recipe.id}-${idx}-detail`} style={styles.stepText}>
                     {idx + 1}. {step}
                   </Text>
                 ))}

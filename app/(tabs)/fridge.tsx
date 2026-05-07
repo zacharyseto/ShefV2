@@ -45,13 +45,14 @@ export default function FridgeScreen() {
     return () => clearInterval(timer);
   }, [isAnalyzing, detectedTargets]);
 
-  const targets = useMemo(() => detectedTargets.slice(0, 8), [detectedTargets]);
+  const targets = useMemo(() => detectedTargets, [detectedTargets]);
 
   async function finishDetection(detections: DetectedIngredient[]) {
     const ingredientNames = detections.map((item) => item.name).join(', ');
     addIngredientsFromText(ingredientNames);
     setDetectedTargets(detections);
-    await new Promise((resolve) => setTimeout(resolve, 1300));
+    const animationTimeMs = Math.max(1300, detections.length * 320 + 500);
+    await new Promise((resolve) => setTimeout(resolve, animationTimeMs));
     setIsAnalyzing(false);
     router.push('/pantry');
   }

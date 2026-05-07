@@ -119,6 +119,142 @@ export type AiRecipe = {
   steps: string[];
 };
 
+export type AiRecipeTitle = {
+  title: string;
+  category: RecipeCategory;
+};
+
+export async function generateRecipeTitles(
+  pantryIngredients: string[],
+  category: RecipeCategory
+): Promise<AiRecipeTitle[]> {
+  const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing EXPO_PUBLIC_OPENAI_API_KEY');
+  }
+
+  const body = {
+    model: 'gpt-4o-mini',
+    temperature: 0.4,
+    response_format: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a cooking assistant. Return strict JSON only.',
+      },
+      {
+        role: 'user',
+        content: `Using pantry ingredients: ${pantryIngredients.join(
+          ', '
+        )}\nGenerate 8 ${category} recipe titles only. Return JSON exactly as {"recipes":[{"title":"...","category":"${category}"}]}.`,
+      },
+    ],
+  };
+
+  const response = await fetch(OPENAI_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Recipe titles request failed: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (typeof content !== 'string') return [];
+
+  try {
+    const parsed = JSON.parse(stripCodeFences(content));
+    const recipes = Array.isArray(parsed?.recipes) ? parsed.recipes : [];
+    return recipes
+      .filter(
+        (r: unknown) =>
+          typeof r === 'object' && r !== null && typeof (r as { title?: unknown }).title === 'string'
+      )
+      .map((r: { title: string }) => ({
+        title: r.title.trim(),
+        category,
+      }))
+      .filter((r: AiRecipeTitle) => r.title.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+export async function generateRecipeDetails(
+  pantryIngredients: string[],
+  category: RecipeCategory,
+  title: string
+): Promise<AiRecipe | null> {
+  const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing EXPO_PUBLIC_OPENAI_API_KEY');
+  }
+
+  const body = {
+    model: 'gpt-4o-mini',
+    temperature: 0.3,
+    response_format: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a practical cooking assistant. Return strict JSON only.',
+      },
+      {
+        role: 'user',
+        content: `Using pantry ingredients: ${pantryIngredients.join(
+          ', '
+        )}\nFor category "${category}", generate recipe details for title "${title}". Return JSON exactly as {"recipe":{"title":"${title}","category":"${category}","ingredients":["..."],"steps":["..."]}}.`,
+      },
+    ],
+  };
+
+  const response = await fetch(OPENAI_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Recipe detail request failed: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (typeof content !== 'string') return null;
+
+  try {
+    const parsed = JSON.parse(stripCodeFences(content));
+    const recipe = parsed?.recipe;
+    if (
+      !recipe ||
+      typeof recipe.title !== 'string' ||
+      !Array.isArray(recipe.ingredients) ||
+      !Array.isArray(recipe.steps)
+    ) {
+      return null;
+    }
+    return {
+      title: recipe.title.trim() || title,
+      category,
+      ingredients: recipe.ingredients.map((i: unknown) => String(i).trim()).filter(Boolean),
+      steps: recipe.steps.map((s: unknown) => String(s).trim()).filter(Boolean),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function generateRecipeSuggestions(
   pantryIngredients: string[],
   category: RecipeCategory
