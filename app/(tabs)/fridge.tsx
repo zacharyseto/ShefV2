@@ -115,6 +115,32 @@ export default function FridgeScreen() {
     }
   }
 
+  if (isAnalyzing && fridgeImageUri) {
+    return (
+      <View style={styles.fullScreen} lightColor="#000" darkColor="#000">
+        <Image source={{ uri: fridgeImageUri }} style={styles.fullScreenPhoto} resizeMode="cover" />
+        <View style={styles.fullScreenOverlay} lightColor="transparent" darkColor="transparent">
+          {targets.slice(0, visibleTargetCount).map((target) => (
+            <Animated.View
+              key={`${target.name}-${target.x}-${target.y}`}
+              style={[
+                styles.targetWrap,
+                {
+                  top: `${Math.round(target.y * 100)}%`,
+                  left: `${Math.round(target.x * 100)}%`,
+                  transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.2] }) }],
+                },
+              ]}>
+              <View style={styles.targetDot} />
+              <Text style={styles.targetLabel}>{target.name}</Text>
+            </Animated.View>
+          ))}
+          <Text style={styles.overlayTitle}>Analyzing ingredients...</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.flex}>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -195,6 +221,18 @@ export default function FridgeScreen() {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
+  },
+  fullScreen: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  fullScreenPhoto: {
+    width: '100%',
+    height: '100%',
+  },
+  fullScreenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(9, 9, 11, 0.28)',
   },
   scroll: {
     padding: 20,

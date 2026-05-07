@@ -2,6 +2,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Stack } from 'expo-router';
 import React, { useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, TextInput } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
 
 import { Text, View } from '@/components/Themed';
 import Colors from '@/constants/Colors';
@@ -60,20 +61,25 @@ export default function PantryScreen() {
           contentContainerStyle={styles.list}
           ItemSeparatorComponent={() => <View style={styles.sep} lightColor="#e4e4e7" darkColor="#3f3f46" />}
           renderItem={({ item }) => (
-            <View style={styles.row} lightColor="transparent" darkColor="transparent">
-              <View style={styles.rowMain}>
-                <FontAwesome name="leaf" size={17} color={palette.tint} style={styles.leafIcon} />
-                <Text style={styles.itemName}>{item.name}</Text>
+            <Swipeable
+              overshootRight={false}
+              renderRightActions={() => (
+                <Pressable
+                  onPress={() => removeItem(item.id)}
+                  style={styles.swipeDelete}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete ${item.name}`}>
+                  <FontAwesome name="trash-o" size={20} color="#fff" />
+                </Pressable>
+              )}>
+              <View style={styles.row} lightColor="transparent" darkColor="transparent">
+                <View style={styles.rowMain}>
+                  <FontAwesome name="leaf" size={17} color={palette.tint} style={styles.leafIcon} />
+                  <Text style={styles.itemName}>{item.name}</Text>
+                </View>
+                <FontAwesome name="angle-left" size={18} color={palette.tabIconDefault} />
               </View>
-              <Pressable
-                onPress={() => removeItem(item.id)}
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${item.name}`}
-                hitSlop={12}
-                style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
-                <FontAwesome name="trash-o" size={22} color="#ef4444" />
-              </Pressable>
-            </View>
+            </Swipeable>
           )}
         />
       )}
@@ -161,6 +167,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 12,
+  },
+  swipeDelete: {
+    backgroundColor: '#ef4444',
+    width: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
   },
   rowMain: {
     flexDirection: 'row',

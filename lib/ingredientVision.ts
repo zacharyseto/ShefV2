@@ -17,6 +17,13 @@ function clamp01(value: number): number {
   return value;
 }
 
+function normalizeCoordinate(raw: unknown): number {
+  const num = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(num)) return 0.5;
+  if (num > 1 && num <= 100) return clamp01(num / 100);
+  return clamp01(num);
+}
+
 export async function detectIngredientsFromBase64Image(base64: string): Promise<DetectedIngredient[]> {
   const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
   if (!apiKey) {
@@ -81,10 +88,10 @@ export async function detectIngredientsFromBase64Image(base64: string): Promise<
           item !== null &&
           typeof (item as { name?: unknown }).name === 'string'
       )
-      .map((item: { name: string; x?: number; y?: number }) => ({
+      .map((item: { name: string; x?: unknown; y?: unknown }) => ({
         name: item.name.trim(),
-        x: clamp01(typeof item.x === 'number' ? item.x : 0.5),
-        y: clamp01(typeof item.y === 'number' ? item.y : 0.5),
+        x: normalizeCoordinate(item.x),
+        y: normalizeCoordinate(item.y),
       }))
       .filter((item: DetectedIngredient) => item.name.length > 0);
   } catch {

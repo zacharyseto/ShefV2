@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet } from 'react-native';
+import { LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, UIManager } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
 import Colors from '@/constants/Colors';
@@ -75,6 +75,13 @@ export default function RecipesScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
   const [recipeCache, setRecipeCache] = useState<Record<string, Recipe[]>>({});
+  const [addedRecipeIds, setAddedRecipeIds] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
 
   const pantrySet = useMemo(() => {
     return new Set(items.map((item) => item.name.toLowerCase()));
@@ -209,6 +216,7 @@ export default function RecipesScreen() {
 
       {suggestions.map(({ recipe, availableCount, missing }) => {
         const isExpanded = expandedRecipeId === recipe.id;
+        const isAdded = !!addedRecipeIds[recipe.id];
         return (
           <View key={recipe.id} style={styles.card} lightColor="#f8fafc" darkColor="#18181b">
             <Pressable onPress={() => setExpandedRecipeId(isExpanded ? null : recipe.id)}>
@@ -220,12 +228,23 @@ export default function RecipesScreen() {
                 <View style={styles.missingWrap} lightColor="transparent" darkColor="transparent">
                   <Text style={styles.missingText}>Missing: {missing.join(', ')}</Text>
                   <Pressable
-                    onPress={() => addGroceryFromText(missing.join(', '))}
+                    onPress={() => {
+                      addGroceryFromText(missing.join(', '));
+                      LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
+                      setAddedRecipeIds((prev) => ({ ...prev, [recipe.id]: true }));
+                    }}
                     style={({ pressed }) => [
                       styles.addMissingButton,
-                      { backgroundColor: palette.tint, opacity: pressed ? 0.85 : 1 },
-                    ]}>
-                    <Text style={styles.addMissingButtonText}>Add missing to groceries</Text>
+                      {
+                        backgroundColor: isAdded ? '#22c55e' : palette.tint,
+                        opacity: pressed ? 0.85 : 1,
+                        transform: [{ scale: isAdded ? 1.02 : 1 }],
+                      },
+                    ]}
+                    disabled={isAdded}>
+                    <Text style={styles.addMissingButtonText}>
+                      {isAdded ? 'Added to groceries' : 'Add missing to groceries'}
+                    </Text>
                   </Pressable>
                 </View>
               ) : (
