@@ -76,7 +76,7 @@ const HARD_CODED_RECIPES: Recipe[] = [
 export default function RecipesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
-  const { items, addGroceryFromText } = usePantry();
+  const { items, stapleItems, addGroceryFromText } = usePantry();
   const [selectedCategory, setSelectedCategory] = useState<RecipeCategory>('balanced meals');
   const [expandedRecipeId, setExpandedRecipeId] = useState<string | null>(null);
   const [recipeTitles, setRecipeTitles] = useState<Recipe[]>([]);
@@ -97,16 +97,19 @@ export default function RecipesScreen() {
 
   const pantrySignature = useMemo(
     () =>
-      [...items.map((item) => item.name.toLowerCase().trim())]
+      [...items.map((item) => item.name.toLowerCase().trim()), ...stapleItems.map((item) => item.name.toLowerCase().trim())]
         .sort((a, b) => a.localeCompare(b))
         .join('|'),
-    [items]
+    [items, stapleItems]
   );
 
   const cacheKey = `${selectedCategory}::${pantrySignature}`;
   const pantryNamesLower = useMemo(
-    () => items.map((item) => item.name.toLowerCase().trim()).filter(Boolean),
-    [items]
+    () =>
+      [...items.map((item) => item.name.toLowerCase().trim()), ...stapleItems.map((item) => item.name.toLowerCase().trim())].filter(
+        Boolean
+      ),
+    [items, stapleItems]
   );
 
   useEffect(() => {
@@ -149,7 +152,7 @@ export default function RecipesScreen() {
     setExpandedRecipeId(null);
 
     let cancelled = false;
-    const pantryNames = items.map((item) => item.name).filter(Boolean);
+    const pantryNames = [...items.map((item) => item.name), ...stapleItems.map((item) => item.name)].filter(Boolean);
     if (pantryNames.length === 0) {
       setRecipeTitles([]);
       setUsingFallback(ENABLE_RECIPE_FALLBACK);
@@ -187,11 +190,11 @@ export default function RecipesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [items, selectedCategory, titlesCache, cacheKey]);
+  }, [items, stapleItems, selectedCategory, titlesCache, cacheKey]);
 
   useEffect(() => {
     let cancelled = false;
-    const pantryNames = items.map((item) => item.name);
+    const pantryNames = [...items.map((item) => item.name), ...stapleItems.map((item) => item.name)];
     if (recipeTitles.length === 0 || pantryNames.length === 0) return;
 
     async function preload() {
@@ -240,7 +243,7 @@ export default function RecipesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [recipeTitles, items, selectedCategory, detailsCache]);
+  }, [recipeTitles, items, stapleItems, selectedCategory, detailsCache]);
 
   async function onLoadRecipe(recipe: Recipe) {
     const cacheDetailKey = `${selectedCategory}::${recipe.title.toLowerCase()}`;
@@ -253,7 +256,7 @@ export default function RecipesScreen() {
     setLoadingDetailId(recipe.id);
     try {
       const detail = await generateRecipeDetails(
-        items.map((item) => item.name),
+        [...items.map((item) => item.name), ...stapleItems.map((item) => item.name)],
         selectedCategory,
         recipe.title
       );

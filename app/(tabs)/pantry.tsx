@@ -1,8 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Stack } from 'expo-router';
-import React, { useMemo, useState } from 'react';
-import { Animated, Modal, Pressable, SectionList, StyleSheet, TextInput } from 'react-native';
+import React, { useMemo } from 'react';
+import { Animated, Pressable, SectionList, StyleSheet } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 
 import { Text, View } from '@/components/Themed';
@@ -53,9 +52,7 @@ function groupForIngredient(name: string): (typeof GROUPS)[number]['title'] {
 export default function PantryScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
-  const { items, removeItem, addIngredient } = usePantry();
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  const [draftName, setDraftName] = useState('');
+  const { items, removeItem } = usePantry();
 
   const sections = useMemo<PantrySection[]>(() => {
     const grouped = new Map<string, typeof items>();
@@ -73,37 +70,14 @@ export default function PantryScreen() {
     })).filter((section) => section.data.length > 0);
   }, [items]);
 
-  function onSubmitAdd() {
-    const trimmed = draftName.trim();
-    if (!trimmed) return;
-    addIngredient(trimmed);
-    setDraftName('');
-    setIsAddOpen(false);
-  }
-
   return (
     <View style={styles.container}>
-      <Stack.Screen
-        options={{
-          headerRight: () => (
-            <Pressable
-              onPress={() => setIsAddOpen(true)}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Add ingredient"
-              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
-              <FontAwesome name="plus" size={22} color={palette.tint} />
-            </Pressable>
-          ),
-        }}
-      />
-
       {items.length === 0 ? (
         <View style={styles.empty} lightColor="#f4f4f5" darkColor="#27272a">
           <FontAwesome name="shopping-basket" size={40} color={palette.tabIconDefault} />
           <Text style={styles.emptyTitle}>Pantry is empty</Text>
           <Text style={styles.emptySubtitle} lightColor="#52525b" darkColor="#a1a1aa">
-            Add ingredients from the Fridge tab to build your list.
+            Add ingredients from the Fridge tab. Use Staples for long-term items like rice and olive oil.
           </Text>
         </View>
       ) : (
@@ -164,49 +138,6 @@ export default function PantryScreen() {
           )}
         />
       )}
-
-      <Modal visible={isAddOpen} transparent animationType="fade" onRequestClose={() => setIsAddOpen(false)}>
-        <View style={styles.modalBackdrop} lightColor="rgba(0,0,0,0.5)" darkColor="rgba(0,0,0,0.65)">
-          <View style={styles.modalCard} lightColor="#fff" darkColor="#18181b">
-            <Text style={styles.modalTitle}>Add ingredient</Text>
-            <TextInput
-              value={draftName}
-              onChangeText={setDraftName}
-              placeholder="e.g. garlic"
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={onSubmitAdd}
-              placeholderTextColor={colorScheme === 'dark' ? '#71717a' : '#a1a1aa'}
-              style={[
-                styles.input,
-                {
-                  color: palette.text,
-                  borderColor: colorScheme === 'dark' ? '#3f3f46' : '#e4e4e7',
-                  backgroundColor: colorScheme === 'dark' ? '#09090b' : '#fff',
-                },
-              ]}
-            />
-            <View style={styles.modalActions} lightColor="transparent" darkColor="transparent">
-              <Pressable onPress={() => setIsAddOpen(false)} style={styles.actionButton}>
-                <Text style={{ color: '#71717a', fontWeight: '600' }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={onSubmitAdd}
-                disabled={!draftName.trim()}
-                style={({ pressed }) => [
-                  styles.actionButton,
-                  styles.primaryAction,
-                  {
-                    backgroundColor: palette.tint,
-                    opacity: !draftName.trim() ? 0.45 : pressed ? 0.85 : 1,
-                  },
-                ]}>
-                <Text style={styles.primaryActionText}>Add</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -292,47 +223,5 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: 17,
     flex: 1,
-  },
-  modalBackdrop: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  modalCard: {
-    width: '100%',
-    borderRadius: 12,
-    padding: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 10,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-  },
-  modalActions: {
-    marginTop: 14,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 10,
-  },
-  actionButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-  },
-  primaryAction: {
-    minWidth: 72,
-    alignItems: 'center',
-  },
-  primaryActionText: {
-    color: '#fff',
-    fontWeight: '700',
   },
 });

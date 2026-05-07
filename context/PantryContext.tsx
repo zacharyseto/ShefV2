@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 const STORAGE_PANTRY = '@shefv2/pantry';
 const STORAGE_FRIDGE_IMAGE = '@shefv2/fridge-image';
 const STORAGE_GROCERIES = '@shefv2/groceries';
+const STORAGE_STAPLES = '@shefv2/staples';
 
 export type PantryItem = {
   id: string;
@@ -13,6 +14,12 @@ export type PantryItem = {
 };
 
 export type GroceryItem = {
+  id: string;
+  name: string;
+  addedAt: number;
+};
+
+export type StapleItem = {
   id: string;
   name: string;
   addedAt: number;
@@ -29,6 +36,10 @@ type PantryContextValue = {
   addGroceryFromText: (text: string) => void;
   addGroceryItem: (name: string) => void;
   removeGroceryItem: (id: string) => void;
+  stapleItems: StapleItem[];
+  addStapleFromText: (text: string) => void;
+  addStapleItem: (name: string) => void;
+  removeStapleItem: (id: string) => void;
 };
 
 const PantryContext = createContext<PantryContextValue | null>(null);
@@ -48,16 +59,18 @@ export function PantryProvider({ children }: { children: React.ReactNode }) {
   const [fridgeImageUri, setFridgeImageUriState] = useState<string | null>(null);
   const [items, setItems] = useState<PantryItem[]>([]);
   const [groceryItems, setGroceryItems] = useState<GroceryItem[]>([]);
+  const [stapleItems, setStapleItems] = useState<StapleItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [rawItems, rawImage, rawGroceries] = await Promise.all([
+        const [rawItems, rawImage, rawGroceries, rawStaples] = await Promise.all([
           AsyncStorage.getItem(STORAGE_PANTRY),
           AsyncStorage.getItem(STORAGE_FRIDGE_IMAGE),
           AsyncStorage.getItem(STORAGE_GROCERIES),
+          AsyncStorage.getItem(STORAGE_STAPLES),
         ]);
         if (cancelled) return;
         if (rawItems) {
@@ -68,6 +81,10 @@ export function PantryProvider({ children }: { children: React.ReactNode }) {
         if (rawGroceries) {
           const parsedGroceries = JSON.parse(rawGroceries) as GroceryItem[];
           if (Array.isArray(parsedGroceries)) setGroceryItems(parsedGroceries);
+        }
+        if (rawStaples) {
+          const parsedStaples = JSON.parse(rawStaples) as StapleItem[];
+          if (Array.isArray(parsedStaples)) setStapleItems(parsedStaples);
         }
       } catch {
         /* ignore corrupt storage */
@@ -89,6 +106,11 @@ export function PantryProvider({ children }: { children: React.ReactNode }) {
     if (!hydrated) return;
     AsyncStorage.setItem(STORAGE_GROCERIES, JSON.stringify(groceryItems)).catch(() => {});
   }, [groceryItems, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    AsyncStorage.setItem(STORAGE_STAPLES, JSON.stringify(stapleItems)).catch(() => {});
+  }, [stapleItems, hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -159,6 +181,33 @@ export function PantryProvider({ children }: { children: React.ReactNode }) {
     setGroceryItems((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
+  const addStapleFromText = useCallback((text: string) => {
+    const parts = splitIngredientLines(text);
+    if (parts.length === 0) return;
+    setStapleItems((prev) => {
+      const existing = new Set(prev.map((item) => item.name.toLowerCase()));
+      const now = Date.now();
+      const additions: StapleItem[] = [];
+      for (const part of parts) {
+        const name = normalizeName(part);
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (existing.has(key)) continue;
+        existing.add(key);
+        additions.push({
+          id: `${now}-${Math.random().toString(36).slice(2, 9)}`,
+          name,
+          addedAt: now,
+        });
+      }
+      return [...additions, ...prev];
+    });
+  }, []);
+
+  const removeStapleItem = useCallback((id: string) => {
+    setStapleItems((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
   const value = useMemo(
     () => ({
       fridgeImageUri,
@@ -172,6 +221,10 @@ export function PantryProvider({ children }: { children: React.ReactNode }) {
       addGroceryFromText,
       addGroceryItem: (name: string) => addGroceryFromText(name),
       removeGroceryItem,
+      stapleItems,
+      addStapleFromText,
+      addStapleItem: (name: string) => addStapleFromText(name),
+      removeStapleItem,
     }),
     [
       fridgeImageUri,
@@ -182,6 +235,9 @@ export function PantryProvider({ children }: { children: React.ReactNode }) {
       groceryItems,
       addGroceryFromText,
       removeGroceryItem,
+      stapleItems,
+      addStapleFromText,
+      removeStapleItem,
     ]
   );
 
