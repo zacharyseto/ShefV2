@@ -118,7 +118,7 @@ export default function FridgeScreen() {
   if (isAnalyzing && fridgeImageUri) {
     return (
       <View style={styles.fullScreen} lightColor="#000" darkColor="#000">
-        <Image source={{ uri: fridgeImageUri }} style={styles.fullScreenPhoto} resizeMode="cover" />
+        <Image source={{ uri: fridgeImageUri }} style={styles.fullScreenPhoto} resizeMode="contain" />
         <View style={styles.fullScreenOverlay} lightColor="transparent" darkColor="transparent">
           {targets.slice(0, visibleTargetCount).map((target) => (
             <Animated.View

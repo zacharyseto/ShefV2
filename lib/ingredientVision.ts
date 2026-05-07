@@ -24,6 +24,11 @@ function normalizeCoordinate(raw: unknown): number {
   return clamp01(num);
 }
 
+function hasUsableCoordinate(raw: unknown): boolean {
+  const num = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isFinite(num);
+}
+
 export async function detectIngredientsFromBase64Image(base64: string): Promise<DetectedIngredient[]> {
   const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
   if (!apiKey) {
@@ -92,8 +97,14 @@ export async function detectIngredientsFromBase64Image(base64: string): Promise<
         name: item.name.trim(),
         x: normalizeCoordinate(item.x),
         y: normalizeCoordinate(item.y),
+        hasCoord: hasUsableCoordinate(item.x) && hasUsableCoordinate(item.y),
       }))
-      .filter((item: DetectedIngredient) => item.name.length > 0);
+      .filter((item: DetectedIngredient & { hasCoord: boolean }) => item.name.length > 0 && item.hasCoord)
+      .map((item: DetectedIngredient & { hasCoord: boolean }) => ({
+        name: item.name,
+        x: item.x,
+        y: item.y,
+      }));
   } catch {
     return [];
   }
