@@ -16,6 +16,7 @@ type PantryContextValue = {
   setFridgeImageUri: (uri: string | null) => void;
   items: PantryItem[];
   addIngredientsFromText: (text: string) => void;
+  addIngredient: (name: string) => void;
   removeItem: (id: string) => void;
 };
 
@@ -116,6 +117,7 @@ export function PantryProvider({ children }: { children: React.ReactNode }) {
       items,
       addIngredientsFromText: (text: string) =>
         addIngredientsWithSource(text, fridgeImageUri),
+      addIngredient: (name: string) => addIngredientsWithSource(name, null),
       removeItem,
     }),
     [fridgeImageUri, setFridgeImageUri, items, addIngredientsWithSource, removeItem]
